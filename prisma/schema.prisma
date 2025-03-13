@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model book_categories {
+  bookId     Int
+  categoryId Int
+  books      books      @relation(fields: [bookId], references: [bookId], onDelete: Cascade, onUpdate: Restrict, map: "fk_book")
+  categories categories @relation(fields: [categoryId], references: [categoryId], onDelete: Cascade, onUpdate: Restrict, map: "fk_category")
+
+  @@id([bookId, categoryId])
+  @@index([categoryId], map: "fk_category")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model books {
+  bookId          Int               @id @default(autoincrement())
+  author          String            @db.VarChar(50)
+  title           String            @db.VarChar(50)
+  date            DateTime          @default(dbgenerated("('0000-00-00')")) @db.Date
+  rating          Int               @default(0)
+  created_at      DateTime          @default(now()) @db.Timestamp(0)
+  book_categories book_categories[]
+  collection      collection[]
+  comments        comments[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model categories {
+  categoryId      Int               @id @default(autoincrement())
+  name            String            @unique(map: "Name") @db.VarChar(50)
+  book_categories book_categories[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model collection {
+  collectionId Int       @id @default(autoincrement())
+  userId       Int
+  bookId       Int
+  is_read      Boolean?  @default(false)
+  commented    Boolean?  @default(false)
+  added_at     DateTime? @default(now()) @db.Timestamp(0)
+  books        books     @relation(fields: [bookId], references: [bookId], onDelete: Cascade, onUpdate: Restrict, map: "fk_collection_book")
+  user         user      @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: Restrict, map: "fk_collection_user")
+
+  @@index([bookId], map: "fk_collection_book")
+  @@index([userId], map: "fk_collection_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model comments {
+  commentId  Int      @id @default(autoincrement())
+  bookId     Int
+  userId     Int
+  content    String   @db.Text
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  books      books    @relation(fields: [bookId], references: [bookId], onDelete: Cascade, onUpdate: Restrict, map: "comments_ibfk_1")
+  user       user     @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: Restrict, map: "comments_ibfk_2")
+
+  @@index([bookId], map: "bookId")
+  @@index([userId], map: "userId")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user {
+  userId     Int          @id @default(autoincrement())
+  name       String       @db.VarChar(50)
+  mail       String       @db.VarChar(50)
+  password   String       @db.VarChar(50)
+  avatar     String?      @db.LongText
+  aboutMe    String?      @db.LongText
+  repForum   Int          @default(0) @db.TinyInt
+  addCom     Int          @default(0) @db.TinyInt
+  addBook    Int          @default(0) @db.TinyInt
+  actu       Int          @default(0) @db.TinyInt
+  created_at DateTime     @default(now()) @db.Timestamp(0)
+  collection collection[]
+  comments   comments[]
+}
