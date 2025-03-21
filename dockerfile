@@ -31,7 +31,7 @@ COPY package*.json ./
 
 # Étape 4 : Installer les dépendances, y compris MongoDB
 # RUN npm install && npm install mongodb
-
+RUN npm install mysql2
 # Étape 5 : Copier le reste du projet
 COPY . ./
 
