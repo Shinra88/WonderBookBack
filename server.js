@@ -9,15 +9,15 @@
 // app.use(express.json());
 // app.use(cors());
 
-// const PORT = process.env.PORT || 5000; // 🔥 Change le port ici
+// const PORT = process.env.PORT || 5000; // :fire: Change le port ici
 
-// // 📌 Utilisation des routes
+// // :pushpin: Utilisation des routes
 // app.use("/users", userRoutes);
 // app.use("/books", bookRoutes);
 // app.use("/comments", commentRoutes);
 
-// // 📌 Démarrer le serveur
-// app.listen(PORT, () => console.log(🚀 Serveur back-end lancé sur http://localhost:${PORT}));
+// // :pushpin: Démarrer le serveur
+// app.listen(PORT, () => console.log(`🚀 Serveur back-end lancé sur http://localhost:${PORT}`));
 
 const express = require("express");
 const cors = require("cors");
