@@ -1,24 +1,3 @@
-// const express = require("express");
-// const cors = require("cors");
-
-// const userRoutes = require("./routes/userRoutes");
-// const bookRoutes = require("./routes/bookRoutes");
-// const commentRoutes = require("./routes/commentRoutes");
-
-// const app = express();
-// app.use(express.json());
-// app.use(cors());
-
-// const PORT = process.env.PORT || 5000; // :fire: Change le port ici
-
-// // :pushpin: Utilisation des routes
-// app.use("/users", userRoutes);
-// app.use("/books", bookRoutes);
-// app.use("/comments", commentRoutes);
-
-// // :pushpin: Démarrer le serveur
-// app.listen(PORT, () => console.log(`🚀 Serveur back-end lancé sur http://localhost:${PORT}`));
-
 const express = require("express");
 const cors = require("cors");
 const { PrismaClient } = require("@prisma/client"); // Prisma pour MariaDB
@@ -33,7 +12,13 @@ const postsRoutes = require("./routes/postsRoutes");
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: "http://localhost:3000", // 🔥 Autoriser uniquement ton frontend
+    methods: "GET,POST,PUT,DELETE",
+    allowedHeaders: "Content-Type, Authorization",
+    credentials: true // Permettre l'envoi de cookies et tokens d'authentification
+  }));
+  
 
 const PORT = process.env.PORT || 5000;
 const prisma = new PrismaClient();
@@ -77,11 +62,11 @@ async function startServer() {
         console.log("✅ Connexion à MongoDB réussie !");
 
         // Définition des routes
-        app.use("/users", userRoutes);
-        app.use("/books", bookRoutes);
-        app.use("/comments", commentRoutes);
-        app.use("/topics", topicsRoutes);
-        app.use("/posts", postsRoutes);
+        app.use("/api/users", userRoutes);
+        app.use("/api/books", bookRoutes);
+        app.use("/api/comments", commentRoutes);
+        app.use("/api/topics", topicsRoutes);
+        app.use("/api/posts", postsRoutes);
 
         // Lancer le serveur
         app.listen(PORT, () => console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`));

@@ -31,6 +31,7 @@ model books {
   updated_at      DateTime?         @db.Timestamp(0)
   validated_by    Int?
   status          books_status?     @default(pending)
+  cover_url       String?           @db.VarChar(255)
   book_categories book_categories[]
   user            user?             @relation(fields: [validated_by], references: [userId], onDelete: Restrict, onUpdate: Restrict, map: "fk_validated_by")
   collection      collection[]

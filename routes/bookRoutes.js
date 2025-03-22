@@ -4,13 +4,107 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
+// 📌 Fonction pour gérer la date proprement
+function formatDate(date) {
+    if (!date || date === "0000-00-00") return "Année inconnue"; // ✅ Gestion des cas invalides
+    const parsedDate = new Date(date);
+    return isNaN(parsedDate) ? "Année inconnue" : parsedDate.getFullYear().toString();
+}
+
 // 📌 Route pour récupérer tous les livres
 router.get("/", async (req, res) => {
     try {
-        const books = await prisma.books.findMany();
-        res.json(books);
+        const books = await prisma.books.findMany({
+            select: {
+                bookId: true,
+                title: true,
+                author: true,
+                date: true,
+                editor: true,
+                cover_url: true,
+                ratings: {
+                    select: {
+                        userId: true,
+                        score: true
+                    }
+                }
+            }
+        });
+
+        console.log("📌 Livres récupérés avant transformation :", books);
+
+        const formattedBooks = books.map(book => ({
+            bookId: book.bookId,
+            title: book.title || "Titre inconnu",
+            author: book.author || "Auteur inconnu",
+            year: book.date
+                ? new Date(book.date).getFullYear().toString()
+                : "Année inconnue",
+            editor: book.editor || "Éditeur inconnu",
+            cover_url: book.cover_url || "",
+            averageRating: book.ratings.length
+                ? book.ratings.reduce((acc, r) => acc + (Number(r.score) || 0), 0) / book.ratings.length
+                : 0,
+            ratings: book.ratings.map(rating => ({
+                userId: Number(rating.userId),
+                score: Number(rating.score),
+            })),
+        }));
+
+        console.log("📌 Livres formatés :", formattedBooks);
+        res.json(formattedBooks);
     } catch (error) {
+        console.error("🚨 Erreur dans GET /books :", error);
         res.status(500).json({ error: "Erreur lors de la récupération des livres." });
+    }
+});
+
+// 📌 Route pour récupérer les livres les mieux notés
+router.get("/bestrating", async (req, res) => {
+    try {
+        const books = await prisma.books.findMany({
+            select: {
+                bookId: true,
+                title: true,
+                author: true,
+                date: true,
+                editor: true,
+                cover_url: true,
+                ratings: {
+                    select: {
+                        userId: true,
+                        score: true
+                    }
+                }
+            }
+        });
+
+        console.log("📌 Livres récupérés pour /bestrating :", books);
+
+        const sortedBooks = books.map(book => ({
+            bookId: book.bookId,
+            title: book.title || "Titre inconnu",
+            author: book.author || "Auteur inconnu",
+            year: book.date
+                ? new Date(book.date).getFullYear().toString()
+                : "Année inconnue",            editor: book.editor || "Éditeur inconnu",
+            cover_url: book.cover_url || "",
+            averageRating: book.ratings.length
+                ? book.ratings.reduce((acc, r) => acc + (Number(r.score) || 0), 0) / book.ratings.length
+                : 0,
+            ratings: book.ratings.map(rating => ({
+                userId: Number(rating.userId),
+                score: Number(rating.score),
+            })),
+        }))
+        .sort((a, b) => b.averageRating - a.averageRating)
+        .slice(0, 5);
+
+        console.log("📌 Livres triés pour /bestrating :", sortedBooks);
+        res.json(sortedBooks);
+    } catch (error) {
+        console.error("🚨 Erreur dans /bestrating :", error);
+        res.status(500).json({ error: "Erreur lors de la récupération des livres les mieux notés." });
     }
 });
 
