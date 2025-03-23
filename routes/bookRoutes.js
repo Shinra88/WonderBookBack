@@ -4,13 +4,6 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
-// 📌 Fonction pour gérer la date proprement
-function formatDate(date) {
-    if (!date || date === "0000-00-00") return "Année inconnue"; // ✅ Gestion des cas invalides
-    const parsedDate = new Date(date);
-    return isNaN(parsedDate) ? "Année inconnue" : parsedDate.getFullYear().toString();
-}
-
 // 📌 Route pour récupérer tous les livres
 router.get("/", async (req, res) => {
     try {
@@ -37,9 +30,7 @@ router.get("/", async (req, res) => {
             bookId: book.bookId,
             title: book.title || "Titre inconnu",
             author: book.author || "Auteur inconnu",
-            year: book.date
-                ? new Date(book.date).getFullYear().toString()
-                : "Année inconnue",
+            date: book.date || null,
             editor: book.editor || "Éditeur inconnu",
             cover_url: book.cover_url || "",
             averageRating: book.ratings.length
@@ -85,9 +76,8 @@ router.get("/bestrating", async (req, res) => {
             bookId: book.bookId,
             title: book.title || "Titre inconnu",
             author: book.author || "Auteur inconnu",
-            year: book.date
-                ? new Date(book.date).getFullYear().toString()
-                : "Année inconnue",            editor: book.editor || "Éditeur inconnu",
+            date: book.date || null,         
+            editor: book.editor || "Éditeur inconnu",
             cover_url: book.cover_url || "",
             averageRating: book.ratings.length
                 ? book.ratings.reduce((acc, r) => acc + (Number(r.score) || 0), 0) / book.ratings.length
