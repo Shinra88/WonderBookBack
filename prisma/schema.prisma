@@ -23,7 +23,7 @@ model book_categories {
 model books {
   bookId          Int               @id @default(autoincrement())
   author          String            @db.VarChar(50)
-  title           String            @db.VarChar(50)
+  title           String            @unique(map: "title_2") @db.VarChar(50)
   editor          String            @db.VarChar(50)
   date            DateTime          @default(dbgenerated("('0000-00-00')")) @db.Date
   rating          Int               @default(0)
@@ -32,6 +32,7 @@ model books {
   validated_by    Int?
   status          books_status?     @default(pending)
   cover_url       String?           @db.VarChar(255)
+  summary         String?           @db.Text
   book_categories book_categories[]
   user            user?             @relation(fields: [validated_by], references: [userId], onDelete: Restrict, onUpdate: Restrict, map: "fk_validated_by")
   collection      collection[]
@@ -93,7 +94,7 @@ model user {
   repForum        Int          @default(0) @db.TinyInt
   addCom          Int          @default(0) @db.TinyInt
   addBook         Int          @default(0) @db.TinyInt
-  actu            Int          @default(0) @db.TinyInt
+  news            Int          @default(0) @db.TinyInt
   created_at      DateTime     @default(now()) @db.Timestamp(0)
   updated_at      DateTime?    @db.Timestamp(0)
   status          user_status? @default(active)

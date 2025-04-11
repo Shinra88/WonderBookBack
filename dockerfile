@@ -8,8 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Étape 4 : Installer les dépendances (dev incluses car en dev)
-# RUN npm install && npm install mongodb && npm install mysql2
-RUN npm install
+# RUN npm install && npm install mongodb && npm install mysql2 && npm install bcrypt && npm install multer && npm install aws-sdk
+RUN  npm install
 
 # Étape 5 : Copier le reste du projet
 COPY . .
