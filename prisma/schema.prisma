@@ -24,7 +24,6 @@ model books {
   bookId          Int               @id @default(autoincrement())
   author          String            @db.VarChar(50)
   title           String            @unique(map: "title_2") @db.VarChar(50)
-  editor          String            @db.VarChar(50)
   date            DateTime          @default(dbgenerated("('0000-00-00')")) @db.Date
   rating          Int               @default(0)
   created_at      DateTime          @default(now()) @db.Timestamp(0)
@@ -34,6 +33,7 @@ model books {
   cover_url       String?           @db.VarChar(255)
   summary         String?           @db.Text
   book_categories book_categories[]
+  book_publishers book_publishers[]
   user            user?             @relation(fields: [validated_by], references: [userId], onDelete: Restrict, onUpdate: Restrict, map: "fk_validated_by")
   collection      collection[]
   comments        comments[]
@@ -85,26 +85,27 @@ model comments {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model user {
-  userId          Int          @id @default(autoincrement())
-  name            String       @unique(map: "name") @db.VarChar(50)
-  mail            String       @unique(map: "mail") @db.VarChar(255)
-  password        String       @db.VarChar(255)
-  avatar          String?      @db.LongText
-  aboutMe         String?      @db.LongText
-  repForum        Int          @default(0) @db.TinyInt
-  addCom          Int          @default(0) @db.TinyInt
-  addBook         Int          @default(0) @db.TinyInt
-  news            Int          @default(0) @db.TinyInt
-  created_at      DateTime     @default(now()) @db.Timestamp(0)
-  updated_at      DateTime?    @db.Timestamp(0)
-  status          user_status? @default(active)
-  suspended_until DateTime?    @db.DateTime(0)
-  role            user_role    @default(user)
-  books           books[]
-  collection      collection[]
-  comments        comments[]
-  logs            logs[]
-  ratings         ratings[]
+  userId              Int                  @id @default(autoincrement())
+  name                String               @unique(map: "name") @db.VarChar(50)
+  mail                String               @unique(map: "mail") @db.VarChar(255)
+  password            String               @db.VarChar(255)
+  avatar              String?              @db.LongText
+  aboutMe             String?              @db.LongText
+  repForum            Int                  @default(0) @db.TinyInt
+  addCom              Int                  @default(0) @db.TinyInt
+  addBook             Int                  @default(0) @db.TinyInt
+  news                Int                  @default(0) @db.TinyInt
+  created_at          DateTime             @default(now()) @db.Timestamp(0)
+  updated_at          DateTime?            @db.Timestamp(0)
+  status              user_status?         @default(active)
+  suspended_until     DateTime?            @db.DateTime(0)
+  role                user_role            @default(user)
+  books               books[]
+  collection          collection[]
+  comments            comments[]
+  logs                logs[]
+  passwordResetTokens passwordResetToken[]
+  ratings             ratings[]
 }
 
 model logs {
@@ -123,13 +124,39 @@ model ratings {
   ratingId   Int       @id @default(autoincrement())
   userId     Int
   bookId     Int
-  score      Boolean?
+  score      Int       @default(0) @db.TinyInt
   created_at DateTime? @default(now()) @db.Timestamp(0)
   user       user      @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: Restrict, map: "ratings_ibfk_1")
   books      books     @relation(fields: [bookId], references: [bookId], onDelete: Cascade, onUpdate: Restrict, map: "ratings_ibfk_2")
 
   @@unique([userId, bookId], map: "unique_user_book_rating")
   @@index([bookId], map: "bookId")
+}
+
+model book_publishers {
+  bookId      Int
+  publisherId Int
+  books       books      @relation(fields: [bookId], references: [bookId], onDelete: Cascade, onUpdate: Restrict, map: "book_publishers_ibfk_1")
+  publishers  publishers @relation(fields: [publisherId], references: [publisherId], onDelete: Cascade, onUpdate: Restrict, map: "book_publishers_ibfk_2")
+
+  @@id([bookId, publisherId])
+  @@index([publisherId], map: "publisherId")
+}
+
+model publishers {
+  publisherId     Int               @id @default(autoincrement())
+  name            String            @unique(map: "name") @db.VarChar(100)
+  book_publishers book_publishers[]
+}
+
+model passwordResetToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique(map: "token") @db.VarChar(255)
+  userId    Int
+  expiresAt DateTime @db.DateTime(0)
+  user      user     @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: Restrict, map: "fk_password_user")
+
+  @@index([userId], map: "idx_userId")
 }
 
 enum logs_targetType {

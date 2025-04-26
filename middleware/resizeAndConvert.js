@@ -7,13 +7,14 @@ module.exports = async (req, res, next) => {
   try {
     const originalName = req.file.originalname?.split(".")[0] || "image";
 
-    // 🔄 Conversion en webp avec dimension fixe
     const buffer = await sharp(req.file.buffer)
-      .resize(400, 540, { fit: "cover", position: "center" })
+      .resize(400, 540, {
+        fit: "contain",
+        background: { r: 0, g: 0, b: 0, alpha: 0 }, // ✅ fond transparent
+      })
       .toFormat("webp", { quality: 80 })
       .toBuffer();
 
-    // ✅ Mise à jour du fichier pour multer/S3
     req.file.buffer = buffer;
     req.file.originalname = `${originalName}.webp`;
     req.file.mimetype = "image/webp";
