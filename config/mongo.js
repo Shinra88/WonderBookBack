@@ -1,6 +1,6 @@
 const { MongoClient } = require("mongodb");
 
-const mongoUri = process.env.MONGO_URI || "mongodb://root:rootpwd@mongodb:27017/admin";
+const mongoUri = process.env.MONGO_URI;
 const client = new MongoClient(mongoUri);
 
 async function connectMongo() {

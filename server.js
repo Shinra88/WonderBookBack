@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { PrismaClient } = require("@prisma/client");
@@ -13,7 +14,7 @@ const PORT = process.env.PORT || 5000;
 app.use(express.json()); // obligatoire pour parser req.body
 app.use(cors({
   origin: "http://localhost:3000",  // Assurez-vous que cette adresse correspond à celle de votre frontend
-  methods: "GET,POST,PUT,DELETE",
+  methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS",
   allowedHeaders: "Content-Type, Authorization",
   credentials: true
 }));
@@ -36,6 +37,8 @@ const authRoutes = require("./routes/authRoutes");
 const uploadRoutes = require("./routes/uploadS3");
 const categoryRoutes = require("./routes/categoryRoutes");
 const publisherRoutes = require('./routes/publisherRoutes');
+const collectionRoutes = require ('./routes/collectionRoutes');
+const postRoutesId = require("./routes/postsRoutes");
 
 // ✅ Authentification + gestion de profil (register, login, profile, change-password)
 app.use("/api/auth", authRoutes);
@@ -43,9 +46,12 @@ app.use("/api/books", bookRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/topics", topicsRoutes);
 app.use("/api/posts", postsRoutes);
+app.use("/api/posts", postRoutesId);
+
 app.use("/api/upload", uploadRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use('/api/publishers', publisherRoutes);
+app.use('/api/collection', collectionRoutes);
 
 // 🔥 Fonction pour attendre MariaDB avant de démarrer Prisma
 async function waitForMariaDB() {

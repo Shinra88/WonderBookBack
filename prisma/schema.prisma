@@ -25,19 +25,18 @@ model books {
   author          String            @db.VarChar(50)
   title           String            @unique(map: "title_2") @db.VarChar(50)
   date            DateTime          @default(dbgenerated("('0000-00-00')")) @db.Date
-  rating          Int               @default(0)
   created_at      DateTime          @default(now()) @db.Timestamp(0)
   updated_at      DateTime?         @db.Timestamp(0)
   validated_by    Int?
   status          books_status?     @default(pending)
   cover_url       String?           @db.VarChar(255)
   summary         String?           @db.Text
+  averageRating   Float?            @default(0) @db.Float
   book_categories book_categories[]
   book_publishers book_publishers[]
   user            user?             @relation(fields: [validated_by], references: [userId], onDelete: Restrict, onUpdate: Restrict, map: "fk_validated_by")
   collection      collection[]
   comments        comments[]
-  ratings         ratings[]
 
   @@index([author], map: "author")
   @@index([validated_by], map: "fk_validated_by")
@@ -73,11 +72,13 @@ model comments {
   bookId     Int
   userId     Int
   content    String    @db.Text
+  rating     Int?      @db.TinyInt
   created_at DateTime  @default(now()) @db.Timestamp(0)
   updated_at DateTime? @db.Timestamp(0)
   books      books     @relation(fields: [bookId], references: [bookId], onDelete: Cascade, onUpdate: Restrict, map: "comments_ibfk_1")
   user       user      @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: Restrict, map: "comments_ibfk_2")
 
+  @@unique([userId, bookId], map: "unique_user_book_comment")
   @@index([bookId], map: "bookId")
   @@index([userId], map: "userId")
   @@index([created_at], map: "created_at")
@@ -105,7 +106,6 @@ model user {
   comments            comments[]
   logs                logs[]
   passwordResetTokens passwordResetToken[]
-  ratings             ratings[]
 }
 
 model logs {
@@ -118,19 +118,6 @@ model logs {
   user       user             @relation(fields: [userId], references: [userId], onUpdate: Restrict, map: "logs_ibfk_1")
 
   @@index([userId], map: "userId")
-}
-
-model ratings {
-  ratingId   Int       @id @default(autoincrement())
-  userId     Int
-  bookId     Int
-  score      Int       @default(0) @db.TinyInt
-  created_at DateTime? @default(now()) @db.Timestamp(0)
-  user       user      @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: Restrict, map: "ratings_ibfk_1")
-  books      books     @relation(fields: [bookId], references: [bookId], onDelete: Cascade, onUpdate: Restrict, map: "ratings_ibfk_2")
-
-  @@unique([userId, bookId], map: "unique_user_book_rating")
-  @@index([bookId], map: "bookId")
 }
 
 model book_publishers {

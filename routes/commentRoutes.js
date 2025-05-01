@@ -1,20 +1,20 @@
+// 📁 routes/commentRoutes.js
 const express = require("express");
 const router = express.Router();
-const { PrismaClient } = require("@prisma/client");
+const authenticate = require("../middleware/authenticate");
+const {
+  getCommentsByBook,
+  addOrUpdateComment,
+  deleteComment,
+} = require("../controllers/commentController");
 
-const prisma = new PrismaClient();
+// 📚 Récupérer tous les commentaires d'un livre (Public)
+router.get("/:bookId", getCommentsByBook);
 
-// 📌 Route pour récupérer les commentaires d'un livre
-router.get("/:bookId", async (req, res) => {
-    try {
-        const { bookId } = req.params;
-        const comments = await prisma.comments.findMany({
-            where: { bookId: parseInt(bookId) }
-        });
-        res.json(comments);
-    } catch (error) {
-        res.status(500).json({ error: "Erreur lors de la récupération des commentaires." });
-    }
-});
+// ✏️ Ajouter ou modifier un commentaire (Connecté)
+router.post("/:bookId", authenticate, addOrUpdateComment);
+
+// ❌ Supprimer son propre commentaire (Connecté)
+router.delete("/:bookId", authenticate, deleteComment);
 
 module.exports = router;

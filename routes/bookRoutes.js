@@ -1,7 +1,7 @@
 // Book routes
 const express = require("express");
 const router = express.Router();
-const authorizeRoles = require("../middleware/authorizeRoles");
+// const authorizeRoles = require("../middleware/authorizeRoles");
 const authenticate = require("../middleware/authenticate");
 const {
   getAllBooks,
