@@ -8,6 +8,19 @@ const region = process.env.AWS_REGION;
 const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
 const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
+const uploadImageToS3 = async (buffer, key, contentType = "image/webp") => {
+  await s3.putObject({
+    Bucket: bucketName,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+  }).promise();
+
+  return `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
+};
+
+exports.uploadImageToS3 = uploadImageToS3;
+
 AWS.config.update({
   accessKeyId,
   secretAccessKey,

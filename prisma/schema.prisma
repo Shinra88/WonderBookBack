@@ -32,6 +32,7 @@ model books {
   cover_url       String?           @db.VarChar(255)
   summary         String?           @db.Text
   averageRating   Float?            @default(0) @db.Float
+  search_title    String            @db.Text
   book_categories book_categories[]
   book_publishers book_publishers[]
   user            user?             @relation(fields: [validated_by], references: [userId], onDelete: Restrict, onUpdate: Restrict, map: "fk_validated_by")

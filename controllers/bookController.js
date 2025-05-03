@@ -1,8 +1,9 @@
 // 📁 controllers/bookController.js
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-
+const { uploadImageToS3 } = require("./uploadController");
 const DEFAULT_COVER = "https://wonderbook-images.s3.eu-north-1.amazonaws.com/covers/default.webp";
+const { normalize } = require("../utils/normalizeString");
 
 // Fonction utilitaire pour construire dynamiquement le WHERE
 const buildWhereFilters = (req) => {
@@ -160,6 +161,7 @@ const addBook = async (req, res) => {
     const newBook = await prisma.books.create({
       data: {
         title,
+        search_title: normalize(title),
         author,
         date: parsedDate,
         summary,
@@ -257,6 +259,33 @@ const getMinYear = async (req, res) => {
   }
 };
 
+// ✅ Mettre à jour la couverture d’un livre
+const updateBookCover = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const book = await prisma.books.findUnique({ where: { bookId: Number(id) } });
+    if (!book) {
+      return res.status(404).json({ error: "Livre non trouvé" });
+    }
+
+    const safeTitle = book.title.replace(/[^a-z0-9_-]/gi, "").toLowerCase();
+    const key = `covers/${safeTitle}.webp`;
+
+    const coverUrl = await uploadImageToS3(req.file.buffer, key, req.file.mimetype);
+
+    await prisma.books.update({
+      where: { bookId: Number(id) },
+      data: { cover_url: coverUrl },
+    });
+
+    res.status(200).json({ message: "Image mise à jour", cover_url: coverUrl });
+  } catch (error) {
+    console.error("❌ Erreur updateBookCover :", error);
+    res.status(500).json({ error: "Erreur mise à jour image" });
+  }
+};
+
 module.exports = {
   getAllBooks,
   getBestRatedBooks,
@@ -264,4 +293,5 @@ module.exports = {
   addBook,
   getBookByTitle,
   getMinYear,
+  updateBookCover,
 };
