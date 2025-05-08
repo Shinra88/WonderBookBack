@@ -5,9 +5,10 @@ const { uploadImageToS3 } = require("./uploadController");
 const DEFAULT_COVER = "https://wonderbook-images.s3.eu-north-1.amazonaws.com/covers/default.webp";
 const { normalize } = require("../utils/normalizeString");
 
+
 // Fonction utilitaire pour construire dynamiquement le WHERE
 const buildWhereFilters = (req) => {
-  const { year, start, end, categories = [], type = 'ou' } = req.query;
+  const { year, start, end, categories = [], type = 'ou', search } = req.query;
   const where = {};
 
   if (year && /^\d{4}$/.test(year)) {
@@ -20,6 +21,10 @@ const buildWhereFilters = (req) => {
       gte: new Date(`${start}-01-01`),
       lt: new Date(`${parseInt(end, 10) + 1}-01-01`),
     };
+  }
+
+  if (search) {
+    where.search_title = { contains: normalize(search.toLowerCase()) };
   }
 
   if (categories.length > 0) {
@@ -40,14 +45,18 @@ const buildWhereFilters = (req) => {
   return where;
 };
 
-// ✅ Récupérer tous les livres (avec filtres)
+// ✅ Récupérer tous les livres (avec filtres, pagination, recherche)
 const getAllBooks = async (req, res) => {
   console.log("📥 Requête reçue - getAllBooks :", req.query);
   const where = buildWhereFilters(req);
+  const take = parseInt(req.query.limit) || 100;
+  const skip = parseInt(req.query.offset) || 0;
 
   try {
     const books = await prisma.books.findMany({
       where,
+      skip,
+      take,
       include: {
         book_publishers: { include: { publishers: true } },
         book_categories: { include: { categories: true } },
@@ -57,6 +66,7 @@ const getAllBooks = async (req, res) => {
     const formattedBooks = books.map((book) => ({
       bookId: book.bookId,
       title: book.title || "Titre inconnu",
+      search_title: book.search_title || "", // ✅ Ajout ici
       author: book.author || "Auteur inconnu",
       date: book.date || null,
       summary: book.summary || "Aucun résumé disponible.",
@@ -64,7 +74,7 @@ const getAllBooks = async (req, res) => {
       editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
       cover_url: book.cover_url || DEFAULT_COVER,
       averageRating: book.averageRating ?? 0,
-    }));
+    }));    
 
     res.json(formattedBooks);
   } catch (error) {
@@ -88,17 +98,20 @@ const getBestRatedBooks = async (req, res) => {
     });
 
     const sortedBooks = books
-      .map((book) => ({
-        bookId: book.bookId,
-        title: book.title || "Titre inconnu",
-        author: book.author || "Auteur inconnu",
-        date: book.date || null,
-        editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
-        cover_url: book.cover_url || DEFAULT_COVER,
-        averageRating: book.averageRating ?? 0,
-      }))
-      .sort((a, b) => b.averageRating - a.averageRating)
-      .slice(0, 5);
+  .map((book) => ({
+    bookId: book.bookId,
+    title: book.title || "Titre inconnu",
+    search_title: book.search_title || "", // ✅ ajout ici
+    author: book.author || "Auteur inconnu",
+    date: book.date || null,
+    summary: book.summary || "Aucun résumé disponible.",
+    categories: book.book_categories.map((bc) => bc.categories.name) || [],
+    editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
+    cover_url: book.cover_url || DEFAULT_COVER,
+    averageRating: book.averageRating ?? 0,
+  }))
+  .sort((a, b) => b.averageRating - a.averageRating)
+  .slice(0, 5);
 
     res.json(sortedBooks);
   } catch (error) {
@@ -126,6 +139,7 @@ const getLastAddedBooks = async (req, res) => {
     const formattedBooks = books.map((book) => ({
       bookId: book.bookId,
       title: book.title || "Titre inconnu",
+      search_title: book.search_title || "", // ✅ ajout ici
       author: book.author || "Auteur inconnu",
       date: book.date || null,
       summary: book.summary || "Aucun résumé disponible.",
@@ -133,7 +147,7 @@ const getLastAddedBooks = async (req, res) => {
       editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
       cover_url: book.cover_url || DEFAULT_COVER,
       averageRating: book.averageRating ?? 0,
-    }));
+    }));    
 
     res.json(formattedBooks);
   } catch (error) {
@@ -161,7 +175,7 @@ const addBook = async (req, res) => {
     const newBook = await prisma.books.create({
       data: {
         title,
-        search_title: normalize(title),
+        search_title: normalize(`${title}${author}`),
         author,
         date: parsedDate,
         summary,
