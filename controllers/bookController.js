@@ -5,7 +5,6 @@ const { uploadImageToS3 } = require("./uploadController");
 const DEFAULT_COVER = "https://wonderbook-images.s3.eu-north-1.amazonaws.com/covers/default.webp";
 const { normalize } = require("../utils/normalizeString");
 
-
 // Fonction utilitaire pour construire dynamiquement le WHERE
 const buildWhereFilters = (req) => {
   const { year, start, end, categories = [], type = 'ou', search } = req.query;
@@ -47,10 +46,10 @@ const buildWhereFilters = (req) => {
 
 // ✅ Récupérer tous les livres (avec filtres, pagination, recherche)
 const getAllBooks = async (req, res) => {
-  console.log("📥 Requête reçue - getAllBooks :", req.query);
   const where = buildWhereFilters(req);
-  const take = parseInt(req.query.limit) || 100;
-  const skip = parseInt(req.query.offset) || 0;
+  const currentPage = parseInt(req.query.page, 10) || 1;
+  const take = parseInt(req.query.limit, 10) || 10;
+  const skip = (currentPage - 1) * take;
 
   try {
     const books = await prisma.books.findMany({
@@ -66,7 +65,7 @@ const getAllBooks = async (req, res) => {
     const formattedBooks = books.map((book) => ({
       bookId: book.bookId,
       title: book.title || "Titre inconnu",
-      search_title: book.search_title || "", // ✅ Ajout ici
+      search_title: book.search_title || "",
       author: book.author || "Auteur inconnu",
       date: book.date || null,
       summary: book.summary || "Aucun résumé disponible.",
@@ -74,19 +73,21 @@ const getAllBooks = async (req, res) => {
       editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
       cover_url: book.cover_url || DEFAULT_COVER,
       averageRating: book.averageRating ?? 0,
-    }));    
+    }));
 
-    res.json(formattedBooks);
+    const total = await prisma.books.count({ where });
+    res.json({ books: formattedBooks, total });
   } catch (error) {
     console.error("❌ Erreur dans getAllBooks :", error);
     res.status(500).json({ error: "Erreur lors de la récupération des livres." });
   }
 };
 
-// ✅ Récupérer les livres les mieux notés (avec filtres)
+// ✅ Récupérer les livres les mieux notés (sans recherche)
 const getBestRatedBooks = async (req, res) => {
-  console.log("📥 Requête reçue - getBestRatedBooks :", req.query);
   const where = buildWhereFilters(req);
+
+  delete where.search_title;
 
   try {
     const books = await prisma.books.findMany({
@@ -98,20 +99,20 @@ const getBestRatedBooks = async (req, res) => {
     });
 
     const sortedBooks = books
-  .map((book) => ({
-    bookId: book.bookId,
-    title: book.title || "Titre inconnu",
-    search_title: book.search_title || "", // ✅ ajout ici
-    author: book.author || "Auteur inconnu",
-    date: book.date || null,
-    summary: book.summary || "Aucun résumé disponible.",
-    categories: book.book_categories.map((bc) => bc.categories.name) || [],
-    editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
-    cover_url: book.cover_url || DEFAULT_COVER,
-    averageRating: book.averageRating ?? 0,
-  }))
-  .sort((a, b) => b.averageRating - a.averageRating)
-  .slice(0, 5);
+      .map((book) => ({
+        bookId: book.bookId,
+        title: book.title || "Titre inconnu",
+        search_title: book.search_title || "",
+        author: book.author || "Auteur inconnu",
+        date: book.date || null,
+        summary: book.summary || "Aucun résumé disponible.",
+        categories: book.book_categories.map((bc) => bc.categories.name) || [],
+        editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
+        cover_url: book.cover_url || DEFAULT_COVER,
+        averageRating: book.averageRating ?? 0,
+      }))
+      .sort((a, b) => b.averageRating - a.averageRating)
+      .slice(0, 5);
 
     res.json(sortedBooks);
   } catch (error) {
@@ -120,10 +121,11 @@ const getBestRatedBooks = async (req, res) => {
   }
 };
 
-// ✅ Récupérer les derniers livres ajoutés (avec filtres)
+// ✅ Récupérer les derniers livres ajoutés (sans recherche)
 const getLastAddedBooks = async (req, res) => {
-  console.log("📥 Requête reçue - getLastAddedBooks :", req.query);
   const where = buildWhereFilters(req);
+
+  delete where.search_title;
 
   try {
     const books = await prisma.books.findMany({
@@ -139,7 +141,7 @@ const getLastAddedBooks = async (req, res) => {
     const formattedBooks = books.map((book) => ({
       bookId: book.bookId,
       title: book.title || "Titre inconnu",
-      search_title: book.search_title || "", // ✅ ajout ici
+      search_title: book.search_title || "",
       author: book.author || "Auteur inconnu",
       date: book.date || null,
       summary: book.summary || "Aucun résumé disponible.",
@@ -147,7 +149,7 @@ const getLastAddedBooks = async (req, res) => {
       editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
       cover_url: book.cover_url || DEFAULT_COVER,
       averageRating: book.averageRating ?? 0,
-    }));    
+    }));
 
     res.json(formattedBooks);
   } catch (error) {
@@ -158,8 +160,6 @@ const getLastAddedBooks = async (req, res) => {
 
 // ✅ Ajouter un livre
 const addBook = async (req, res) => {
-  console.log("📥 Requête reçue - addBook");
-
   const { title, author, year, summary, cover_url, categories, editor } = req.body;
 
   if (!title || !author || !year || !categories?.length || !editor?.length) {
@@ -204,7 +204,7 @@ const getBookByTitle = async (req, res) => {
   try {
     const { title } = req.params;
     const decodedTitle = decodeURIComponent(title);
-    console.log("🔎 Requête reçue - getBookByTitle :", decodedTitle);
+    if (!decodedTitle) return res.status(400).json({ error: "Titre invalide" });
 
     const book = await prisma.books.findFirst({
       where: { title: decodedTitle },
@@ -218,9 +218,7 @@ const getBookByTitle = async (req, res) => {
       },
     });
 
-    if (!book) {
-      return res.status(404).json({ error: "Livre non trouvé" });
-    }
+    if (!book) return res.status(404).json({ error: "Livre non trouvé" });
 
     const bookData = {
       bookId: book.bookId,
@@ -254,8 +252,6 @@ const getBookByTitle = async (req, res) => {
 // ✅ Récupérer l'année la plus ancienne
 const getMinYear = async (req, res) => {
   try {
-    console.log("📅 Requête reçue - getMinYear");
-
     const result = await prisma.books.findFirst({
       orderBy: { date: 'asc' },
       select: { date: true },
@@ -277,15 +273,11 @@ const getMinYear = async (req, res) => {
 const updateBookCover = async (req, res) => {
   try {
     const { id } = req.params;
-
     const book = await prisma.books.findUnique({ where: { bookId: Number(id) } });
-    if (!book) {
-      return res.status(404).json({ error: "Livre non trouvé" });
-    }
+    if (!book) return res.status(404).json({ error: "Livre non trouvé" });
 
     const safeTitle = book.title.replace(/[^a-z0-9_-]/gi, "").toLowerCase();
     const key = `covers/${safeTitle}.webp`;
-
     const coverUrl = await uploadImageToS3(req.file.buffer, key, req.file.mimetype);
 
     await prisma.books.update({
