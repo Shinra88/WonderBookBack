@@ -4,6 +4,7 @@ const prisma = new PrismaClient();
 const { uploadImageToS3 } = require("./uploadController");
 const DEFAULT_COVER = "https://wonderbook-images.s3.eu-north-1.amazonaws.com/covers/default.webp";
 const { normalize } = require("../utils/normalizeString");
+const { formatBooks } = require("../utils/formatBooks"); 
 
 // Fonction utilitaire pour construire dynamiquement le WHERE
 const buildWhereFilters = (req) => {
@@ -51,31 +52,29 @@ const getAllBooks = async (req, res) => {
   const take = parseInt(req.query.limit, 10) || 10;
   const skip = (currentPage - 1) * take;
 
+  const pendingFirst = req.query.pendingFirst === 'true';
+
   try {
     const books = await prisma.books.findMany({
       where,
       skip,
       take,
+      orderBy: pendingFirst
+        ? [
+            { status: 'asc' },            // 'pending' < 'validated'
+            { created_at: 'desc' },
+          ]
+        : [{ created_at: 'desc' }],
       include: {
         book_publishers: { include: { publishers: true } },
         book_categories: { include: { categories: true } },
+        user: { select: { name: true } },
       },
     });
 
-    const formattedBooks = books.map((book) => ({
-      bookId: book.bookId,
-      title: book.title || "Titre inconnu",
-      search_title: book.search_title || "",
-      author: book.author || "Auteur inconnu",
-      date: book.date || null,
-      summary: book.summary || "Aucun résumé disponible.",
-      categories: book.book_categories.map((bc) => bc.categories.name) || [],
-      editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
-      cover_url: book.cover_url || DEFAULT_COVER,
-      averageRating: book.averageRating ?? 0,
-    }));
-
+    const formattedBooks = formatBooks(books);
     const total = await prisma.books.count({ where });
+
     res.json({ books: formattedBooks, total });
   } catch (error) {
     console.error("❌ Erreur dans getAllBooks :", error);
@@ -86,7 +85,6 @@ const getAllBooks = async (req, res) => {
 // ✅ Récupérer les livres les mieux notés (sans recherche)
 const getBestRatedBooks = async (req, res) => {
   const where = buildWhereFilters(req);
-
   delete where.search_title;
 
   try {
@@ -95,26 +93,15 @@ const getBestRatedBooks = async (req, res) => {
       include: {
         book_publishers: { include: { publishers: true } },
         book_categories: { include: { categories: true } },
+        user: { select: { name: true } },
       },
     });
 
-    const sortedBooks = books
-      .map((book) => ({
-        bookId: book.bookId,
-        title: book.title || "Titre inconnu",
-        search_title: book.search_title || "",
-        author: book.author || "Auteur inconnu",
-        date: book.date || null,
-        summary: book.summary || "Aucun résumé disponible.",
-        categories: book.book_categories.map((bc) => bc.categories.name) || [],
-        editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
-        cover_url: book.cover_url || DEFAULT_COVER,
-        averageRating: book.averageRating ?? 0,
-      }))
+    const formattedBooks = formatBooks(books)
       .sort((a, b) => b.averageRating - a.averageRating)
       .slice(0, 5);
 
-    res.json(sortedBooks);
+    res.json(formattedBooks);
   } catch (error) {
     console.error("❌ Erreur dans getBestRatedBooks :", error);
     res.status(500).json({ error: "Erreur lors de la récupération des meilleurs livres." });
@@ -124,7 +111,6 @@ const getBestRatedBooks = async (req, res) => {
 // ✅ Récupérer les derniers livres ajoutés (sans recherche)
 const getLastAddedBooks = async (req, res) => {
   const where = buildWhereFilters(req);
-
   delete where.search_title;
 
   try {
@@ -135,22 +121,11 @@ const getLastAddedBooks = async (req, res) => {
       include: {
         book_publishers: { include: { publishers: true } },
         book_categories: { include: { categories: true } },
+        user: { select: { name: true } },
       },
     });
 
-    const formattedBooks = books.map((book) => ({
-      bookId: book.bookId,
-      title: book.title || "Titre inconnu",
-      search_title: book.search_title || "",
-      author: book.author || "Auteur inconnu",
-      date: book.date || null,
-      summary: book.summary || "Aucun résumé disponible.",
-      categories: book.book_categories.map((bc) => bc.categories.name) || [],
-      editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
-      cover_url: book.cover_url || DEFAULT_COVER,
-      averageRating: book.averageRating ?? 0,
-    }));
-
+    const formattedBooks = formatBooks(books);
     res.json(formattedBooks);
   } catch (error) {
     console.error("❌ Erreur dans getLastAddedBooks :", error);
@@ -211,6 +186,7 @@ const getBookByTitle = async (req, res) => {
       include: {
         book_publishers: { include: { publishers: true } },
         book_categories: { include: { categories: true } },
+        user: { select: { name: true } },
         comments: {
           include: { user: { select: { name: true, avatar: true } } },
           orderBy: { created_at: 'desc' },
@@ -220,29 +196,20 @@ const getBookByTitle = async (req, res) => {
 
     if (!book) return res.status(404).json({ error: "Livre non trouvé" });
 
-    const bookData = {
-      bookId: book.bookId,
-      title: book.title,
-      author: book.author,
-      date: book.date,
-      editors: book.book_publishers.map((bp) => bp.publishers.name),
-      categories: book.book_categories.map((bc) => bc.categories.name),
-      cover_url: book.cover_url || DEFAULT_COVER,
-      summary: book.summary || "Aucun résumé disponible.",
-      averageRating: book.averageRating ?? 0,
-      comments: book.comments.map((comment) => ({
-        commentId: comment.commentId,
-        content: comment.content,
-        rating: comment.rating,
-        created_at: comment.created_at,
-        user: {
-          name: comment.user.name,
-          avatar: comment.user.avatar,
-        },
-      })),
-    };
+    const [formattedBook] = formatBooks([book]);
 
-    res.json(bookData);
+    formattedBook.comments = book.comments.map((comment) => ({
+      commentId: comment.commentId,
+      content: comment.content,
+      rating: comment.rating,
+      created_at: comment.created_at,
+      user: {
+        name: comment.user.name,
+        avatar: comment.user.avatar,
+      },
+    }));
+
+    res.json(formattedBook);
   } catch (error) {
     console.error("❌ Erreur dans getBookByTitle :", error);
     res.status(500).json({ error: "Erreur serveur." });
@@ -292,6 +259,61 @@ const updateBookCover = async (req, res) => {
   }
 };
 
+// ✅ Met à jour les infos principales d’un livre (admin/modo uniquement)
+const updateBook = async (req, res) => {
+  const { id } = req.params;
+  const { title, author, date, summary, status, categories = [], editors = [] } = req.body;
+
+  try {
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate)) {
+      return res.status(400).json({ error: "Date invalide" });
+    }
+
+    await prisma.books.update({
+      where: { bookId: Number(id) },
+      data: {
+        title,
+        search_title: normalize(`${title}${author}`),
+        author,
+        date: parsedDate,
+        summary,
+        status,
+        validated_by: req.user?.userId || null,
+        book_categories: {
+          deleteMany: {},
+          create: categories.map((categoryName) => ({
+            categories: { connect: { name: categoryName } },
+          })),
+        },
+        book_publishers: {
+          deleteMany: {},
+          create: editors.map((publisherName) => ({
+            publishers: { connect: { name: publisherName } },
+          })),
+        },
+      },
+    });
+
+    // 🔄 Re-fetch du livre mis à jour
+    const updatedBook = await prisma.books.findUnique({
+      where: { bookId: Number(id) },
+      include: {
+        book_publishers: { include: { publishers: true } },
+        book_categories: { include: { categories: true } },
+        user: { select: { name: true } },
+      },
+    });
+
+    const [formatted] = formatBooks([updatedBook]);
+    res.status(200).json(formatted);
+  } catch (err) {
+    console.error("❌ Erreur updateBook :", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+};
+
+
 module.exports = {
   getAllBooks,
   getBestRatedBooks,
@@ -300,4 +322,5 @@ module.exports = {
   getBookByTitle,
   getMinYear,
   updateBookCover,
+  updateBook,
 };

@@ -79,4 +79,19 @@ const deleteComment = async (req, res) => {
   }
 };
 
-module.exports = { getCommentsByBook, addOrUpdateComment, deleteComment };
+const deleteCommentById = async (req, res) => {
+  const { commentId } = req.params;
+
+  try {
+    const deleted = await prisma.comments.delete({
+      where: { commentId: parseInt(commentId, 10) },
+    });
+
+    res.status(200).json({ success: true, message: "Commentaire supprimé par un modérateur." });
+  } catch (error) {
+    console.error("Erreur suppression admin :", error);
+    res.status(500).json({ error: "Erreur serveur." });
+  }
+};
+
+module.exports = { getCommentsByBook, addOrUpdateComment, deleteComment, deleteCommentById };

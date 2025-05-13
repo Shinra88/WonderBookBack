@@ -11,8 +11,10 @@ function formatBooks(books) {
     author: book.author || "Auteur inconnu",
     date: book.date || null,
     summary: book.summary || "Aucun résumé disponible.",
-    categories: book.book_categories?.map((bc) => bc.categories.name) || [],
-    editors: book.book_publishers?.map((bp) => bp.publishers.name) || [],
+    status: book.status || "pending",
+    validated_by: book.user?.name || null,
+    categories: book.book_categories.map((bc) => bc.categories.name) || [],
+    editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
     cover_url: book.cover_url || DEFAULT_COVER,
     averageRating: book.averageRating ?? 0,
   }));

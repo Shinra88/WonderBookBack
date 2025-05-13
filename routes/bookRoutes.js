@@ -16,6 +16,7 @@ const {
   addBook,
   getBookByTitle,
   getMinYear,
+  updateBook,
 } = require("../controllers/bookController");
 
 // 📘 Routes publiques
@@ -38,5 +39,8 @@ router.put(
   resizeAndConvert,             
   bookController.updateBookCover
 );
+
+// 🔐 Route protégée pour modifier les infos d’un livre (admin / modos uniquement)
+router.put('/:id', authenticate, authorizeRoles('admin', 'moderator'), updateBook);
 
 module.exports = router;

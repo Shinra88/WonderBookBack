@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 5000;
 // ✅ Middleware
 app.use(express.json()); // obligatoire pour parser req.body
 app.use(cors({
-  origin: "http://localhost:3000",  // Assurez-vous que cette adresse correspond à celle de votre frontend
+  origin: "http://localhost:3000",  // Adresse du frontend
   methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS",
   allowedHeaders: "Content-Type, Authorization",
   credentials: true
