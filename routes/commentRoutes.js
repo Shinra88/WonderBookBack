@@ -7,6 +7,7 @@ const {
   getCommentsByBook,
   addOrUpdateComment,
   deleteComment,
+  deleteCommentById,
 } = require("../controllers/commentController");
 
 // 📚 Récupérer tous les commentaires d'un livre (Public)
@@ -19,6 +20,6 @@ router.post("/:bookId", authenticate, addOrUpdateComment);
 router.delete("/:bookId", authenticate, deleteComment);
 
 // ❌ Supprimer un commentaire (Admin ou Modérateur)
-router.delete("/admin/:bookId", authenticate, authorizeRoles('admin', 'moderator'), deleteComment);
+router.delete("/admin/:commentId", authenticate, authorizeRoles('admin', 'moderator'), deleteCommentById);
 
 module.exports = router;

@@ -198,6 +198,7 @@ const getBookByTitle = async (req, res) => {
 
     const [formattedBook] = formatBooks([book]);
 
+    // On reformate les commentaires, mais on garde tout le reste déjà formaté
     formattedBook.comments = book.comments.map((comment) => ({
       commentId: comment.commentId,
       content: comment.content,
@@ -262,7 +263,15 @@ const updateBookCover = async (req, res) => {
 // ✅ Met à jour les infos principales d’un livre (admin/modo uniquement)
 const updateBook = async (req, res) => {
   const { id } = req.params;
-  const { title, author, date, summary, status, categories = [], editors = [] } = req.body;
+  const {
+    title,
+    author,
+    date,
+    summary,
+    status,
+    categories = [], // array of categoryId
+    editors = []     // array of publisherId
+  } = req.body;
 
   try {
     const parsedDate = new Date(date);
@@ -282,20 +291,19 @@ const updateBook = async (req, res) => {
         validated_by: req.user?.userId || null,
         book_categories: {
           deleteMany: {},
-          create: categories.map((categoryName) => ({
-            categories: { connect: { name: categoryName } },
+          create: categories.map((categoryId) => ({
+            categories: { connect: { categoryId } },
           })),
         },
         book_publishers: {
           deleteMany: {},
-          create: editors.map((publisherName) => ({
-            publishers: { connect: { name: publisherName } },
+          create: editors.map((publisherId) => ({
+            publishers: { connect: { publisherId } },
           })),
         },
       },
     });
 
-    // 🔄 Re-fetch du livre mis à jour
     const updatedBook = await prisma.books.findUnique({
       where: { bookId: Number(id) },
       include: {
@@ -312,7 +320,6 @@ const updateBook = async (req, res) => {
     res.status(500).json({ error: "Erreur serveur" });
   }
 };
-
 
 module.exports = {
   getAllBooks,
