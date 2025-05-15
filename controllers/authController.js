@@ -151,22 +151,44 @@ exports.changePassword = async (req, res) => {
 
 // ✅ Envoi d'email pour mot de passe oublié
 exports.sendPasswordResetEmail = async (req, res) => {
-  const { email } = req.body;
+  const { email, recaptchaToken } = req.body;
+
+  // ➕ Skip captcha si c’est une action admin
+  if (recaptchaToken !== 'bypass_for_admin') {
+    try {
+      const captchaRes = await axios.post(`https://www.google.com/recaptcha/api/siteverify`, null, {
+        params: {
+          secret: process.env.RECAPTCHA_SECRET,
+          response: recaptchaToken,
+        },
+      });
+
+      if (!captchaRes.data.success) {
+        return res.status(400).json({ success: false, message: "Échec de vérification reCAPTCHA." });
+      }
+    } catch (err) {
+      return res.status(500).json({ success: false, message: "Erreur captcha." });
+    }
+  }
 
   try {
     const user = await prisma.user.findUnique({ where: { mail: email } });
-
     if (!user) {
       return res.status(404).json({ success: false, message: "Aucun compte associé à cet e-mail." });
     }
 
-    // 🔥 Nettoyage des tokens expirés avant d'en créer un nouveau
+    // 1. Générer un mot de passe temporaire (non communiqué à l’utilisateur)
+    const tempPassword = crypto.randomBytes(8).toString("hex");
+    const hashedTempPassword = await bcrypt.hash(tempPassword, 10);
+
+    // 2. Supprimer les anciens tokens expirés
     await prisma.passwordResetToken.deleteMany({
       where: { expiresAt: { lt: new Date() } },
     });
 
+    // 3. Créer le nouveau token de réinit
     const token = crypto.randomBytes(32).toString("hex");
-    const expiration = new Date(Date.now() + 1000 * 60 * 15); // 15 minutes
+    const expiration = new Date(Date.now() + 1000 * 60 * 15);
 
     await prisma.passwordResetToken.create({
       data: {
@@ -176,8 +198,14 @@ exports.sendPasswordResetEmail = async (req, res) => {
       },
     });
 
-    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const resetLink = `${frontendBaseUrl}/forget-password/${token}`;    
+    // 4. ⚠️ Remplacer le mot de passe par le temporaire
+    await prisma.user.update({
+      where: { userId: user.userId },
+      data: { password: hashedTempPassword },
+    });
+
+    // 5. Envoi de l’e-mail
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/forget-password/${token}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -193,9 +221,10 @@ exports.sendPasswordResetEmail = async (req, res) => {
       subject: "Réinitialisation de votre mot de passe",
       html: `
         <p>Bonjour ${user.name || "utilisateur"},</p>
-        <p>Vous avez demandé à réinitialiser votre mot de passe.</p>
-        <p><a href="${resetLink}">Cliquez ici pour réinitialiser votre mot de passe</a> (valide 15 minutes).</p>
-        <p>Si vous n'avez pas fait cette demande, ignorez cet e-mail.</p>
+        <p>Un lien de réinitialisation a été généré pour sécuriser votre compte.</p>
+        <p><a href="${resetLink}">Cliquez ici pour définir un nouveau mot de passe</a>.</p>
+        <p>Ce lien est valide 15 minutes.</p>
+        <p>Si vous n’êtes pas à l’origine de cette demande, contactez notre support immédiatement.</p>
       `,
     });
 

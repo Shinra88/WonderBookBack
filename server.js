@@ -36,9 +36,10 @@ const postsRoutes = require("./routes/postsRoutes");
 const authRoutes = require("./routes/authRoutes");
 const uploadRoutes = require("./routes/uploadS3");
 const categoryRoutes = require("./routes/categoryRoutes");
-const publisherRoutes = require('./routes/publisherRoutes');
-const collectionRoutes = require ('./routes/collectionRoutes');
+const publisherRoutes = require("./routes/publisherRoutes");
+const collectionRoutes = require ("./routes/collectionRoutes");
 const postRoutesId = require("./routes/postsRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 // ✅ Authentification + gestion de profil (register, login, profile, change-password)
 app.use("/api/auth", authRoutes);
@@ -50,8 +51,10 @@ app.use("/api/posts", postRoutesId);
 
 app.use("/api/upload", uploadRoutes);
 app.use("/api/categories", categoryRoutes);
-app.use('/api/publishers', publisherRoutes);
-app.use('/api/collection', collectionRoutes);
+app.use("/api/publishers", publisherRoutes);
+app.use("/api/collection", collectionRoutes);
+
+app.use("/api/admin", adminRoutes);
 
 // 🔥 Fonction pour attendre MariaDB avant de démarrer Prisma
 async function waitForMariaDB() {
