@@ -262,36 +262,57 @@ const updateBookCover = async (req, res) => {
 // ✅ Met à jour les infos principales d’un livre (admin/modo uniquement)
 const updateBook = async (req, res) => {
   const { id } = req.params;
-  const { title, author, date, summary, status, categories = [], editors = [] } = req.body;
+  const { title, author, year, summary, status, categories = [], editors = [], cover_url } = req.body;
 
   try {
-    const parsedDate = new Date(date);
+    const parsedDate = new Date(year);
     if (isNaN(parsedDate)) {
       return res.status(400).json({ error: "Date invalide" });
     }
-
+    console.log("🧪 Données envoyées à Prisma :", {
+      title,
+      search_title: normalize(`${title} ${author}`),
+      author,
+      date: parsedDate,
+      summary,
+      status,
+      cover_url,
+      validated_by: req.user?.userId || null,
+      book_categories: {
+        create: categories.map((categoryId) => ({
+          category: { connect: { categoryId } },
+        })),
+      },
+      book_publishers: {
+        create: editors.map((publisherId) => ({
+          publisher: { connect: { publisherId } },
+        })),
+      },
+    });
+    
     await prisma.books.update({
       where: { bookId: Number(id) },
       data: {
         title,
-        search_title: normalize(`${title}${author}`),
+        search_title: normalize(`${title} ${author}`),
         author,
         date: parsedDate,
         summary,
         status,
+        cover_url,
         validated_by: req.user?.userId || null,
         book_categories: {
           deleteMany: {},
           create: categories.map((categoryId) => ({
-            categories: { connect: { categoryId } },
+            categoryId,
           })),
         },
         book_publishers: {
           deleteMany: {},
           create: editors.map((publisherId) => ({
-            publishers: { connect: { publisherId } },
+            publisherId,
           })),
-        },
+        },        
       },
     });
 
@@ -307,10 +328,14 @@ const updateBook = async (req, res) => {
     const [formatted] = formatBooks([updatedBook]);
     res.status(200).json(formatted);
   } catch (err) {
-    console.error("❌ Erreur updateBook :", err);
-    res.status(500).json({ error: "Erreur serveur" });
+    console.error("❌ Erreur updateBook :", err.message);
+    if (err.meta) console.error("📛 Meta :", err.meta);
+    if (err.cause) console.error("📛 Cause :", err.cause);
+    res.status(500).json({ error: "Erreur serveur", message: err.message });
   }
+  
 };
+
 
 module.exports = {
   getAllBooks,
