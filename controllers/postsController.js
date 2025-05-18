@@ -63,27 +63,4 @@ async function getPostsByTopicId(req, res) {
   }
 }
 
-async function deletePostById(req, res) {
-  const { id } = req.params;
-  const { role } = req.user;
-
-  if (role !== "admin" && role !== "moderator") {
-    return res.status(403).json({ error: "Accès refusé" });
-  }
-
-  try {
-    const db = req.app.locals.mongoDB;
-    const deleted = await db.collection("posts").deleteOne({ _id: new ObjectId(id) });
-
-    if (deleted.deletedCount === 0) {
-      return res.status(404).json({ error: "Post introuvable" });
-    }
-
-    res.json({ message: "Post supprimé" });
-  } catch (error) {
-    console.error("❌ Erreur suppression post :", error);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-}
-
-module.exports = { getPosts, addPost, getPostsByTopicId, deletePostById };
+module.exports = { getPosts, addPost, getPostsByTopicId };

@@ -61,7 +61,7 @@ const getAllBooks = async (req, res) => {
       take,
       orderBy: pendingFirst
         ? [
-            { status: 'asc' },            // 'pending' < 'validated'
+            { status: 'asc' },
             { created_at: 'desc' },
           ]
         : [{ created_at: 'desc' }],
@@ -150,7 +150,7 @@ const addBook = async (req, res) => {
     const newBook = await prisma.books.create({
       data: {
         title,
-        search_title: normalize(`${title}${author}`),
+        search_title: normalize(`${title} ${author}`),
         author,
         date: parsedDate,
         summary,
@@ -198,7 +198,6 @@ const getBookByTitle = async (req, res) => {
 
     const [formattedBook] = formatBooks([book]);
 
-    // On reformate les commentaires, mais on garde tout le reste déjà formaté
     formattedBook.comments = book.comments.map((comment) => ({
       commentId: comment.commentId,
       content: comment.content,
@@ -263,15 +262,7 @@ const updateBookCover = async (req, res) => {
 // ✅ Met à jour les infos principales d’un livre (admin/modo uniquement)
 const updateBook = async (req, res) => {
   const { id } = req.params;
-  const {
-    title,
-    author,
-    date,
-    summary,
-    status,
-    categories = [], // array of categoryId
-    editors = []     // array of publisherId
-  } = req.body;
+  const { title, author, date, summary, status, categories = [], editors = [] } = req.body;
 
   try {
     const parsedDate = new Date(date);

@@ -1,3 +1,4 @@
+// Middleware d'authentification pour vérifier le token JWT
 const jwt = require("jsonwebtoken");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();

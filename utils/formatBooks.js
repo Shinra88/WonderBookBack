@@ -9,18 +9,14 @@ function formatBooks(books) {
     title: book.title || "Titre inconnu",
     search_title: book.search_title || "",
     author: book.author || "Auteur inconnu",
-    date: book.date ? book.date.toISOString().split('T')[0] : null,
+    date: book.date || null,
     summary: book.summary || "Aucun résumé disponible.",
     status: book.status || "pending",
     validated_by: book.user?.name || null,
-    categories: Array.isArray(book.book_categories)
-      ? book.book_categories.map((bc) => bc.categories?.name).filter(Boolean)
-      : [],
-    editors: Array.isArray(book.book_publishers)
-      ? book.book_publishers.map((bp) => bp.publishers?.name).filter(Boolean)
-      : [],
+    categories: book.book_categories.map((bc) => bc.categories.name) || [],
+    editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
     cover_url: book.cover_url || DEFAULT_COVER,
-    averageRating: typeof book.averageRating === 'number' ? book.averageRating : 0,
+    averageRating: book.averageRating ?? 0,
   }));
 }
 

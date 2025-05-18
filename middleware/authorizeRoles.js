@@ -1,3 +1,4 @@
+// Middleware d'authentification roles pour vérifier le rôle de l'utilisateur
 function authorizeRoles(...allowedRoles) {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
