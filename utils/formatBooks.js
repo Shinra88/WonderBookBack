@@ -16,6 +16,7 @@ function formatBooks(books) {
     categories: book.book_categories.map((bc) => bc.categories.name) || [],
     editors: book.book_publishers.map((bp) => bp.publishers.name) || [],
     cover_url: book.cover_url || DEFAULT_COVER,
+    ebook_url: book.ebook_url || null,
     averageRating: book.averageRating ?? 0,
   }));
 }

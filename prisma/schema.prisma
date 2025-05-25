@@ -33,6 +33,7 @@ model books {
   summary         String?           @db.Text
   averageRating   Float?            @default(0) @db.Float
   search_title    String            @db.Text
+  ebook_url       String?           @db.VarChar(255)
   book_categories book_categories[]
   book_publishers book_publishers[]
   user            user?             @relation(fields: [validated_by], references: [userId], onDelete: Restrict, onUpdate: Restrict, map: "fk_validated_by")
@@ -59,9 +60,11 @@ model collection {
   is_read      Boolean?  @default(false)
   commented    Boolean?  @default(false)
   added_at     DateTime? @default(now()) @db.Timestamp(0)
+  last_cfi     String?   @db.Text
   books        books     @relation(fields: [bookId], references: [bookId], onDelete: Cascade, map: "fk_collection_book")
   user         user      @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_collection_user")
 
+  @@unique([userId, bookId], map: "unique_user_book")
   @@index([bookId], map: "fk_collection_book")
   @@index([userId], map: "fk_collection_user")
   @@index([added_at], map: "added_at")
@@ -168,6 +171,7 @@ enum user_status {
 
 enum user_role {
   user
+  prenium
   moderator
   admin
 }

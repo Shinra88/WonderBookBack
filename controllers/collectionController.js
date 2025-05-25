@@ -158,9 +158,70 @@ const updateReadStatus = async (req, res) => {
   }
 };
 
+// ✅ Récupérer la position de lecture (CFI)
+const getReadingProgress = async (req, res) => {
+  const userId = req.user.userId;
+  const { bookId } = req.params;
+
+  try {
+    const entry = await prisma.collection.findUnique({
+      where: {
+        userId_bookId: {
+          userId: parseInt(userId),
+          bookId: parseInt(bookId)
+        }
+      },
+      select: {
+        last_cfi: true
+      }
+    });
+
+    return res.status(200).json({ cfi: entry?.last_cfi || null });
+  } catch (error) {
+    console.error("Erreur récupération CFI :", error);
+    return res.status(500).json({ error: "Erreur serveur." });
+  }
+};
+
+// ✅ Sauvegarder la position de lecture (CFI)
+const saveReadingProgress = async (req, res) => {
+  const userId = req.user.userId;
+  const { bookId } = req.params;
+  const { cfi } = req.body;
+
+  if (!cfi) {
+    return res.status(400).json({ error: "CFI manquant." });
+  }
+
+  try {
+    const updated = await prisma.collection.updateMany({
+      where: {
+        userId,
+        bookId: parseInt(bookId),
+      },
+      data: {
+        last_cfi: cfi,
+      },
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ error: "Livre non trouvé dans votre collection." });
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Erreur sauvegarde CFI :", error);
+    return res.status(500).json({ error: "Erreur serveur." });
+  }
+};
+
+
 module.exports = {
   addToCollection,
   getCollection,
   removeFromCollection,
   updateReadStatus,
+  getReadingProgress,
+  saveReadingProgress,
 };
+

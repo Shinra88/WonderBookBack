@@ -95,3 +95,46 @@ exports.uploadCover = async (req, res) => {
     res.status(500).json({ error: "Erreur lors de l'upload de la couverture." });
   }
 };
+
+exports.uploadEbook = async (req, res) => {
+  const { bookId } = req.body;
+
+  console.log("📥 Reçu dans uploadEbook :", {
+    hasFile: !!req.file,
+    bookId: req.body.bookId,
+    originalName: req.file?.originalname,
+    mimetype: req.file?.mimetype
+  });
+
+  if (!req.file || !bookId) {
+    return res.status(400).json({ error: "Fichier ou bookId manquant." });
+  }
+
+  if (!req.file.originalname.endsWith('.epub')) {
+    return res.status(400).json({ error: "Seuls les fichiers .epub sont autorisés." });
+  }
+
+  const safeKey = `ebooks/${bookId}.epub`;
+
+  try {
+    await s3.putObject({
+      Bucket: bucketName,
+      Key: safeKey,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+    }).promise();
+
+    const ebookUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${safeKey}`;
+
+    const updatedBook = await prisma.books.update({
+      where: { bookId: Number(bookId) },
+      data: { ebook_url: ebookUrl },
+    });
+
+    res.status(200).json({ message: "Ebook uploadé", ebook_url: updatedBook.ebook_url });
+  } catch (err) {
+    console.error("❌ Erreur update ebook_url :", err.message);
+    res.status(500).json({ error: "Erreur lors de la mise à jour du livre." });
+  }
+};
+
