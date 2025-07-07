@@ -1,0 +1,651 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "WonderBook API",
+    "version": "1.0.0",
+    "description": "Documentation complète WonderBook générée depuis les contrôleurs"
+  },
+  "servers": [
+    { "url": "http://localhost:5000/api" }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Créer un compte utilisateur",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "mail": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "format": "password" }
+                },
+                "required": ["name", "mail", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Compte créé avec succès" },
+          "400": { "description": "Erreur de validation des données" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Se connecter avec mail et mot de passe",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mail": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "format": "password" }
+                },
+                "required": ["mail", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Connexion réussie (JWT retourné)" },
+          "401": { "description": "Identifiants invalides" }
+        }
+      }
+    },
+    "/auth/forget": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Envoyer un mail de réinitialisation de mot de passe",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mail": { "type": "string", "format": "email" }
+                },
+                "required": ["mail"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Mail de réinitialisation envoyé" },
+          "404": { "description": "Utilisateur introuvable" }
+        }
+      }
+    },
+    "/auth/change-password": {
+      "patch": {
+        "tags": ["Auth"],
+        "summary": "Changer le mot de passe utilisateur",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "oldPassword": { "type": "string" },
+                  "newPassword": { "type": "string" }
+                },
+                "required": ["oldPassword", "newPassword"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Mot de passe mis à jour" },
+          "401": { "description": "Ancien mot de passe incorrect" }
+        }
+      }
+    },
+    "/auth/profile": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Récupérer les informations du profil connecté",
+        "responses": {
+          "200": { "description": "Profil récupéré" },
+          "401": { "description": "Non autorisé" }
+        }
+      },
+      "put": {
+        "tags": ["Auth"],
+        "summary": "Mettre à jour les infos du profil",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "aboutMe": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Profil mis à jour" }
+        }
+      }
+    },
+    
+    "/books": {
+      "get": {
+        "tags": ["Books"],
+        "summary": "Lister tous les livres",
+        "responses": {
+          "200": { "description": "Liste de livres renvoyée" }
+        }
+      },
+      "post": {
+        "tags": ["Books"],
+        "summary": "Ajouter un livre",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "author": { "type": "string" },
+                  "date": { "type": "string", "format": "date" },
+                  "summary": { "type": "string" },
+                  "cover_url": { "type": "string", "format": "uri" }
+                },
+                "required": ["title", "author"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Livre ajouté" },
+          "400": { "description": "Erreur de validation" }
+        }
+      }
+    },
+    "/books/bestrating": {
+      "get": {
+        "tags": ["Books"],
+        "summary": "Obtenir les livres les mieux notés",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/books/lastadded": {
+      "get": {
+        "tags": ["Books"],
+        "summary": "Obtenir les derniers livres ajoutés",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/books/{title}": {
+      "get": {
+        "tags": ["Books"],
+        "summary": "Récupérer un livre par titre",
+        "parameters": [
+          {
+            "name": "title",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Livre trouvé" },
+          "404": { "description": "Livre non trouvé" }
+        }
+      }
+    },
+    "/books/{id}/cover": {
+      "post": {
+        "tags": ["Books"],
+        "summary": "Uploader ou remplacer la couverture d'un livre",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cover": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Couverture mise à jour" }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "tags": ["Categories"],
+        "summary": "Lister toutes les catégories disponibles",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/publishers": {
+      "get": {
+        "tags": ["Publishers"],
+        "summary": "Lister tous les éditeurs",
+        "responses": {
+          "200": { "description": "Liste des éditeurs renvoyée" }
+        }
+      }
+    },
+    "/collection": {
+      "get": {
+        "tags": ["Collection"],
+        "summary": "Obtenir la collection de l'utilisateur connecté",
+        "responses": {
+          "200": { "description": "Collection renvoyée" },
+          "401": { "description": "Non autorisé" }
+        }
+      }
+    },
+    "/collection/add": {
+      "post": {
+        "tags": ["Collection"],
+        "summary": "Ajouter un livre à la collection",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": { "type": "integer" }
+                },
+                "required": ["bookId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Ajouté à la collection" },
+          "400": { "description": "Erreur de validation" }
+        }
+      }
+    },
+    "/collection/{bookId}": {
+      "delete": {
+        "tags": ["Collection"],
+        "summary": "Retirer un livre de la collection",
+        "parameters": [
+          {
+            "name": "bookId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Livre retiré" },
+          "404": { "description": "Livre non trouvé" }
+        }
+      },
+      "patch": {
+        "tags": ["Collection"],
+        "summary": "Mettre à jour le statut lu/non-lu d'un livre",
+        "parameters": [
+          {
+            "name": "bookId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "is_read": { "type": "boolean" }
+                },
+                "required": ["is_read"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Statut mis à jour" }
+        }
+      }
+    },
+    "/comments": {
+      "post": {
+        "tags": ["Comments"],
+        "summary": "Ajouter un commentaire à un livre",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bookId": { "type": "integer" },
+                  "content": { "type": "string" },
+                  "rating": { "type": "integer" }
+                },
+                "required": ["bookId", "content"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Commentaire ajouté" },
+          "400": { "description": "Erreur de validation" }
+        }
+      }
+    },
+    "/topics": {
+      "get": {
+        "tags": ["Forum"],
+        "summary": "Lister tous les topics",
+        "responses": {
+          "200": { "description": "Liste des topics renvoyée" }
+        }
+      },
+      "post": {
+        "tags": ["Forum"],
+        "summary": "Créer un nouveau topic",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "content": { "type": "string" }
+                },
+                "required": ["title", "content"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Topic créé" }
+        }
+      }
+    },
+    "/topics/{topicId}/pin": {
+      "patch": {
+        "tags": ["Forum"],
+        "summary": "Épingler/désépingler un topic",
+        "parameters": [
+          {
+            "name": "topicId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isPinned": { "type": "boolean" }
+                },
+                "required": ["isPinned"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Topic mis à jour" }
+        }
+      }
+    },
+    "/topics/{topicId}/lock": {
+      "patch": {
+        "tags": ["Forum"],
+        "summary": "Verrouiller/déverrouiller un topic",
+        "parameters": [
+          {
+            "name": "topicId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isLocked": { "type": "boolean" }
+                },
+                "required": ["isLocked"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Topic mis à jour" }
+        }
+      }
+    },
+    "/posts": {
+      "post": {
+        "tags": ["Forum"],
+        "summary": "Créer un post dans un topic",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "topicId": { "type": "integer" },
+                  "content": { "type": "string" }
+                },
+                "required": ["topicId", "content"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Post ajouté" }
+        }
+      }
+    },
+    "/posts/{postId}": {
+      "delete": {
+        "tags": ["Forum"],
+        "summary": "Supprimer un post",
+        "parameters": [
+          {
+            "name": "postId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Post supprimé" },
+          "404": { "description": "Post non trouvé" }
+        }
+      }
+    },
+    "/upload/cover": {
+      "post": {
+        "tags": ["Upload"],
+        "summary": "Uploader une image de couverture",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cover": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Image uploadée" }
+        }
+      }
+    },
+    "/upload/ebook": {
+      "post": {
+        "tags": ["Upload"],
+        "summary": "Uploader un ebook",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ebook": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Ebook uploadé" }
+        }
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Lister tous les utilisateurs",
+        "responses": {
+          "200": { "description": "Liste des utilisateurs renvoyée" }
+        }
+      }
+    },
+    "/admin/users/{id}": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Mettre à jour un utilisateur",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "mail": { "type": "string", "format": "email" },
+                  "status": { "type": "string", "enum": ["active", "suspended", "banned"] },
+                  "role": { "type": "string", "enum": ["user", "prenium", "moderator", "admin"] },
+                  "aboutMe": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Utilisateur mis à jour" },
+          "404": { "description": "Utilisateur non trouvé" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "Supprimer un utilisateur",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Utilisateur supprimé" },
+          "404": { "description": "Utilisateur non trouvé" }
+        }
+      }
+    },
+    "/admin/users/{id}/status": {
+      "patch": {
+        "tags": ["Admin"],
+        "summary": "Changer le statut d'un utilisateur",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string", "enum": ["active", "suspended", "banned"] }
+                },
+                "required": ["status"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Statut mis à jour" },
+          "404": { "description": "Utilisateur non trouvé" }
+        }
+      }
+    }
+  }
+}
+
+
+

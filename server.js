@@ -1,6 +1,10 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+
+const swaggerUi = require("swagger-ui-express");
+const swaggerDocument = require("./swagger.json");
+
 const { PrismaClient } = require("@prisma/client");
 const connectMongo = require("./config/mongo");
 const mysql = require("mysql2/promise");
@@ -55,6 +59,8 @@ app.use("/api/publishers", publisherRoutes);
 app.use("/api/collection", collectionRoutes);
 
 app.use("/api/admin", adminRoutes);
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // 🔥 Fonction pour attendre MariaDB avant de démarrer Prisma
 async function waitForMariaDB() {
