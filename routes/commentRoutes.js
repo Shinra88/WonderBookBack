@@ -9,16 +9,16 @@ const {
   deleteComment,
 } = require("../controllers/commentController");
 
-// 📚 Récupérer tous les commentaires d'un livre (Public)
+// 📚 Retrieve all comments for a book (Public)
 router.get("/:bookId", getCommentsByBook);
 
-// ✏️ Ajouter ou modifier un commentaire (Connecté)
+// ✏️ Add or update a comment (Authenticated)
 router.post("/:bookId", authenticate, addOrUpdateComment);
 
-// ❌ Supprimer son propre commentaire (Connecté)
+// ❌ Delete your own comment (Connected)
 router.delete("/:bookId", authenticate, deleteComment);
 
-// ❌ Supprimer un commentaire (Admin ou Modérateur)
+// ❌ Delete a comment (Admin or Moderator)
 router.delete("/admin/:bookId", authenticate, authorizeRoles('admin', 'moderator'), deleteComment);
 
 module.exports = router;

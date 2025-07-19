@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 
 const DEFAULT_COVER = "https://wonderbook-images.s3.eu-north-1.amazonaws.com/covers/default.webp";
 
-// ✅ Ajouter un livre à la collection
+// ✅ Add a book to the user's collection
 const addToCollection = async (req, res) => {
   const userId = req.user.userId;
   const { bookId } = req.body;
@@ -37,7 +37,7 @@ const addToCollection = async (req, res) => {
   }
 };
 
-// ✅ Récupérer la collection de l'utilisateur avec filtres
+// ✅ Get the user's collection with filters
 const getCollection = async (req, res) => {
   const userId = req.user.userId;
   const { year, start, end, categories = [], type = 'ou', is_read, noted, commented } = req.query;
@@ -104,7 +104,7 @@ const getCollection = async (req, res) => {
   }
 };
 
-// ✅ Supprimer un livre de la collection
+// ✅ Remove a book from the collection
 const removeFromCollection = async (req, res) => {
   const userId = req.user.userId;
   const { bookId } = req.params;
@@ -128,7 +128,7 @@ const removeFromCollection = async (req, res) => {
   }
 };
 
-// ✅ Mettre à jour le statut "lu"
+// ✅ Update the status to "read"
 const updateReadStatus = async (req, res) => {
   const userId = req.user.userId;
   const { bookId } = req.params;
@@ -158,7 +158,7 @@ const updateReadStatus = async (req, res) => {
   }
 };
 
-// ✅ Récupérer la position de lecture (CFI)
+// ✅ Retrieve reading position (CFI)
 const getReadingProgress = async (req, res) => {
   const userId = req.user.userId;
   const { bookId } = req.params;
@@ -183,7 +183,7 @@ const getReadingProgress = async (req, res) => {
   }
 };
 
-// ✅ Sauvegarder la position de lecture (CFI)
+// ✅ Save reading position (CFI)
 const saveReadingProgress = async (req, res) => {
   const userId = req.user.userId;
   const { bookId } = req.params;

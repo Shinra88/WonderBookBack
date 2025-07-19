@@ -6,8 +6,8 @@ const DEFAULT_COVER = "https://wonderbook-images.s3.eu-north-1.amazonaws.com/cov
 const { normalize } = require("../utils/normalizeString");
 const { formatBooks } = require("../utils/formatBooks"); 
 
-// Fonction utilitaire pour construire dynamiquement le WHERE
-const buildWhereFilters = (req) => {
+// Utility function to dynamically construct the WHERE
+  const buildWhereFilters = (req) => {
   const { year, start, end, categories = [], type = 'ou', search } = req.query;
   const where = {};
 
@@ -45,8 +45,8 @@ const buildWhereFilters = (req) => {
   return where;
 };
 
-// ✅ Récupérer tous les livres (avec filtres, pagination, recherche)
-const getAllBooks = async (req, res) => {
+// ✅ Retrieve all books (with filters, pagination, search)
+  const getAllBooks = async (req, res) => {
   const where = buildWhereFilters(req);
   const currentPage = parseInt(req.query.page, 10) || 1;
   const take = parseInt(req.query.limit, 10) || 10;
@@ -81,8 +81,7 @@ const getAllBooks = async (req, res) => {
     res.status(500).json({ error: "Erreur lors de la récupération des livres." });
   }
 };
-
-// ✅ Récupérer les livres les mieux notés (sans recherche)
+// ✅ Retrieve best-rated books (without search)
 const getBestRatedBooks = async (req, res) => {
   const where = buildWhereFilters(req);
   delete where.search_title;
@@ -108,7 +107,7 @@ const getBestRatedBooks = async (req, res) => {
   }
 };
 
-// ✅ Récupérer les derniers livres ajoutés (sans recherche)
+// ✅ Retrieve last added books (without search)
 const getLastAddedBooks = async (req, res) => {
   const where = buildWhereFilters(req);
   delete where.search_title;
@@ -133,7 +132,7 @@ const getLastAddedBooks = async (req, res) => {
   }
 };
 
-// ✅ Ajouter un livre
+// ✅ Add a book
 const addBook = async (req, res) => {
   const { title, author, year, summary, cover_url, categories, editor } = req.body;
 
@@ -174,7 +173,7 @@ const addBook = async (req, res) => {
   }
 };
 
-// ✅ Récupérer un livre par son titre
+// ✅ Retrieve a book by its title
 const getBookByTitle = async (req, res) => {
   try {
     const { title } = req.params;
@@ -216,7 +215,7 @@ const getBookByTitle = async (req, res) => {
   }
 };
 
-// ✅ Récupérer l'année la plus ancienne
+// ✅ Retrieve the oldest year
 const getMinYear = async (req, res) => {
   try {
     const result = await prisma.books.findFirst({
@@ -236,7 +235,7 @@ const getMinYear = async (req, res) => {
   }
 };
 
-// ✅ Mettre à jour la couverture d’un livre
+// ✅ Update a book's cover
 const updateBookCover = async (req, res) => {
   try {
     const { id } = req.params;
@@ -259,7 +258,7 @@ const updateBookCover = async (req, res) => {
   }
 };
 
-// ✅ Met à jour les infos principales d’un livre (admin/modo uniquement)
+// ✅ Updates the main information of a book (admin/modo only)
 const updateBook = async (req, res) => {
   const { id } = req.params;
   const { title, author, year, summary, status, categories = [], editors = [], cover_url } = req.body;
@@ -269,26 +268,6 @@ const updateBook = async (req, res) => {
     if (isNaN(parsedDate)) {
       return res.status(400).json({ error: "Date invalide" });
     }
-    console.log("🧪 Données envoyées à Prisma :", {
-      title,
-      search_title: normalize(`${title} ${author}`),
-      author,
-      date: parsedDate,
-      summary,
-      status,
-      cover_url,
-      validated_by: req.user?.userId || null,
-      book_categories: {
-        create: categories.map((categoryId) => ({
-          category: { connect: { categoryId } },
-        })),
-      },
-      book_publishers: {
-        create: editors.map((publisherId) => ({
-          publisher: { connect: { publisherId } },
-        })),
-      },
-    });
     
     await prisma.books.update({
       where: { bookId: Number(id) },

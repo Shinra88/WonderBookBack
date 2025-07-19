@@ -12,7 +12,7 @@ const {
   saveReadingProgress,
 } = require("../controllers/collectionController");
 
-// 🔒 Routes sécurisées
+// 🔒 Routes secure
 router.post("/add", authenticate, addToCollection);
 router.get("/", authenticate, getCollection);
 router.delete("/:bookId", authenticate, removeFromCollection);

@@ -3,13 +3,13 @@ const express = require("express");
 const router = express.Router();
 const authenticate = require("../middleware/authenticate");
 const { getTopics, addTopic, getTopicById } = require("../controllers/topicsController");
-// 📌 Obtenir tous les topics
+// 📌 Get all topics
 router.get("/", getTopics);
 
-// 🔐 Route protégée pour ajouter un topic
+// 🔐 Protected route to add a topic
 router.post("/", authenticate, addTopic);
 
-// 📌 Obtenir un topic 
+// 📌 Get a topic
 router.get("/:id", getTopicById);
 
 module.exports = router;

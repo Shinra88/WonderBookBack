@@ -2,7 +2,7 @@
 
 const DEFAULT_COVER = "https://wonderbook-images.s3.eu-north-1.amazonaws.com/covers/default.webp";
 
-/** Formate un tableau de livres Prisma pour l'API */
+/** Formats an array of Prisma books for the API */
 function formatBooks(books) {
   return books.map((book) => ({
     bookId: book.bookId,

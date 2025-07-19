@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// 📚 Récupérer tous les éditeurs
+// 📚 Retrieve all editors
 const getAllPublishers = async (req, res) => {
   try {
     const publishers = await prisma.publishers.findMany({

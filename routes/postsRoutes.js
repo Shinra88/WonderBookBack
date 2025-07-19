@@ -4,13 +4,13 @@ const router = express.Router();
 const authenticate = require("../middleware/authenticate");
 const { getPosts, addPost, getPostsByTopicId  } = require("../controllers/postsController");
 
-// 📌 Obtenir tous les posts
+// 📌 Get all posts
 router.get("/", getPosts);
 
-// 🔐 Route protégée pour Ajouter un post
+// 🔐 Protected route to add a post
 router.post("/add", authenticate, addPost);
 
-// 📌 Obtenir les posts par topicId
+// 📌 Get posts by topicId
 router.get("/:topicId", getPostsByTopicId);
 
 module.exports = router;

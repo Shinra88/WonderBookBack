@@ -19,18 +19,18 @@ const {
   updateBook,
 } = require("../controllers/bookController");
 
-// 📘 Routes publiques
+// 📘 Routes public
 router.get("/", getAllBooks);
 router.get("/bestrating", getBestRatedBooks);
 router.get("/lastadded", getLastAddedBooks);
 router.get("/title/:title", getBookByTitle);
 router.get('/minyear', getMinYear);
 
-// 🔐 Route protégée pour ajouter un livre
+// 🔐 Protected route to add a book
 router.post("/", authenticate, addBook);
 
 
-// 🔐 Route protégée pour modifier un livre (admin uniquement)
+// 🔐 Protected route to update a book (admin only)
 router.put(
   "/:id/cover",
   authenticate,
@@ -40,7 +40,7 @@ router.put(
   bookController.updateBookCover
 );
 
-// 🔐 Route protégée pour modifier les infos d’un livre (admin / modos uniquement)
+// 🔐 Protected route to update book info (admin / moderator only)
 router.put('/:id', authenticate, authorizeRoles('admin', 'moderator'), updateBook);
 
 module.exports = router;

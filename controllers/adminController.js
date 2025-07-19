@@ -2,7 +2,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// 🔍 GET /api/admin/users → liste paginée avec recherche et filtrage
+// 🔍 GET /api/admin/users → paginated list with search and filtering
 exports.getAllUsers = async (req, res) => {
   try {
     const {
@@ -53,7 +53,7 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// ✏️ PUT /api/users/:id → modifier rôle ou infos
+// ✏️ PUT /api/users/:id → change role or info
 exports.updateUser = async (req, res) => {
   const { id } = req.params;
   const { role, name, mail } = req.body;
@@ -71,7 +71,7 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-// ❌ DELETE /api/users/:id → supprimer un utilisateur
+// ❌ DELETE /api/users/:id → delete a user
 exports.deleteUser = async (req, res) => {
   const { id } = req.params;
 
@@ -84,7 +84,7 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-// 🔄 PUT /api/users/:id/status → modifier le statut d'un utilisateur
+// 🔄 PUT /api/users/:id/status → change a user's status
 exports.updateUserStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;

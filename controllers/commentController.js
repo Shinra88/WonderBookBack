@@ -2,7 +2,21 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// 🎯 GET - récupérer les commentaires d'un livre
+const updateAverageRating = async (bookId) => {
+  const result = await prisma.comments.aggregate({
+    where: { bookId: parseInt(bookId, 10) },
+    _avg: { rating: true },
+  });
+
+  const newAverage = result._avg.rating ?? 0;
+
+  await prisma.books.update({
+    where: { bookId: parseInt(bookId, 10) },
+    data: { averageRating: newAverage },
+  });
+};
+
+// 🎯 GET - retrieve book reviews
 const getCommentsByBook = async (req, res) => {
   const { bookId } = req.params;
 
@@ -22,7 +36,7 @@ const getCommentsByBook = async (req, res) => {
   }
 };
 
-// 🎯 POST - ajouter ou mettre à jour un commentaire
+// 🎯 POST - add or update a comment
 const addOrUpdateComment = async (req, res) => {
   const { bookId } = req.params;
   const { content, rating } = req.body;
@@ -33,23 +47,27 @@ const addOrUpdateComment = async (req, res) => {
   }
 
   try {
-    // Vérifie s'il existe déjà un commentaire
+    // Check if a comment already exists
     const existing = await prisma.comments.findFirst({
       where: { bookId: parseInt(bookId, 10), userId },
     });
 
     if (existing) {
-      // ➔ Mise à jour
+      // ➔ Update
       const updated = await prisma.comments.update({
         where: { commentId: existing.commentId },
         data: { content, rating },
       });
+      await updateAverageRating(bookId);
+
       return res.status(200).json({ success: true, data: updated, message: "Commentaire mis à jour." });
     } else {
-      // ➔ Ajout
+      // ➔ Add
       const newComment = await prisma.comments.create({
         data: { bookId: parseInt(bookId, 10), userId, content, rating },
       });
+      await updateAverageRating(bookId);
+
       return res.status(201).json({ success: true, data: newComment, message: "Commentaire ajouté." });
     }
   } catch (error) {
@@ -58,7 +76,7 @@ const addOrUpdateComment = async (req, res) => {
   }
 };
 
-// 🎯 DELETE - supprimer un commentaire
+// 🎯 DELETE - remove a comment
 const deleteComment = async (req, res) => {
   const { bookId } = req.params;
   const userId = req.user.userId;
@@ -68,8 +86,22 @@ const deleteComment = async (req, res) => {
       where: { bookId: parseInt(bookId, 10), userId },
     });
 
+    await updateAverageRating(bookId);
+
     if (deleted.count === 0) {
       return res.status(404).json({ error: "Commentaire non trouvé." });
+    }
+
+    // 🔁 Check if there are any remaining comments from this user for this book
+    const remaining = await prisma.comments.findMany({
+      where: { bookId: parseInt(bookId, 10), userId },
+    });
+
+    if (remaining.length === 0) {
+      await prisma.collection.updateMany({
+        where: { bookId: parseInt(bookId, 10), userId },
+        data: { commented: false },
+      });
     }
 
     res.status(200).json({ success: true, message: "Commentaire supprimé." });
@@ -83,9 +115,37 @@ const deleteCommentById = async (req, res) => {
   const { commentId } = req.params;
 
   try {
-    const deleted = await prisma.comments.delete({
+    const existingComment = await prisma.comments.findUnique({
       where: { commentId: parseInt(commentId, 10) },
     });
+
+    if (!existingComment) {
+      return res.status(404).json({ error: "Commentaire introuvable." });
+    }
+
+    await prisma.comments.delete({
+      where: { commentId: parseInt(commentId, 10) },
+    });
+
+    await updateAverageRating(existingComment.bookId);
+
+    // 🔁 Check if there are any remaining comments from this user for this book
+    const remaining = await prisma.comments.findMany({
+      where: {
+        bookId: existingComment.bookId,
+        userId: existingComment.userId,
+      },
+    });
+
+    if (remaining.length === 0) {
+      await prisma.collection.updateMany({
+        where: {
+          bookId: existingComment.bookId,
+          userId: existingComment.userId,
+        },
+        data: { commented: false },
+      });
+    }
 
     res.status(200).json({ success: true, message: "Commentaire supprimé par un modérateur." });
   } catch (error) {

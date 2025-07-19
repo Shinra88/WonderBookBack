@@ -11,7 +11,7 @@ const sendConfirmationEmail = require("../utils/sendEmail");
 const prisma = new PrismaClient();
 const SECRET = process.env.JWT_SECRET || "dev_secret";
 
-// ✅ Login utilisateur
+// ✅ Login user
 exports.loginUser = async (req, res) => {
   try {
     const { mail, password } = req.body;
@@ -45,7 +45,7 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-// ✅ Inscription utilisateur
+// ✅ Register user
 exports.registerUser = async (req, res) => {
   const { name, mail, password, recaptchaToken, website } = req.body;
 
@@ -95,7 +95,7 @@ exports.registerUser = async (req, res) => {
   });
 };
 
-// ✅ Mise à jour du profil utilisateur
+// ✅ User profile update
 exports.updateProfile = async (req, res) => {
   try {
     const { name, mail, aboutMe, repForum, addCom, addBook, news, avatar } = req.body;
@@ -124,7 +124,7 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-// ✅ Changement de mot de passe connecté
+// ✅ Change connected password
 exports.changePassword = async (req, res) => {
   const { oldPassword, newPassword } = req.body;
   const userId = req.user.userId;
@@ -149,7 +149,7 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// ✅ Envoi d'email pour mot de passe oublié
+// ✅ Send email for forgotten password
 exports.sendPasswordResetEmail = async (req, res) => {
   const { email } = req.body;
 
@@ -160,13 +160,13 @@ exports.sendPasswordResetEmail = async (req, res) => {
       return res.status(404).json({ success: false, message: "Aucun compte associé à cet e-mail." });
     }
 
-    // 🔥 Nettoyage des tokens expirés avant d'en créer un nouveau
+    // 🔥 Cleaning up expired tokens before creating a new one
     await prisma.passwordResetToken.deleteMany({
       where: { expiresAt: { lt: new Date() } },
     });
 
     const token = crypto.randomBytes(32).toString("hex");
-    const expiration = new Date(Date.now() + 1000 * 60 * 15); // 15 minutes
+    const expiration = new Date(Date.now() + 1000 * 60 * 15);
 
     await prisma.passwordResetToken.create({
       data: {
@@ -206,7 +206,7 @@ exports.sendPasswordResetEmail = async (req, res) => {
   }
 };
 
-// ✅ Réinitialisation du mot de passe via le token
+// ✅ Password reset via token
 exports.resetPassword = async (req, res) => {
   const { token } = req.params;
   const { newPassword } = req.body;

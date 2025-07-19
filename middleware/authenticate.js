@@ -28,7 +28,7 @@ async function authenticate(req, res, next) {
       return res.status(401).json({ error: "Utilisateur introuvable." });
     }
 
-    // 🟢 Ajout correct dans req.user
+    // 🟢 Correct addition in req.user
     req.user = {
       userId: user.userId,
       name: user.name,

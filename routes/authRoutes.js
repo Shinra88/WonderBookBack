@@ -15,22 +15,22 @@ const hashPassword = require("../middleware/hashPassword");
 const authenticate = require("../middleware/authenticate");
 const loginLimiter = require("../middleware/rateLimit");
 
-// ✅ Inscription avec hash + captcha + honeypot
+// ✅ Registration with hash + captcha + honeypot
 router.post("/register", hashPassword, registerUser);
 
-// ✅ Connexion avec rate limiter
+// ✅ Login with rate limiter
 router.post("/login", loginLimiter, loginUser);
 
-// ✅ Mise à jour du profil utilisateur connecté
+// ✅ Update connected user profile
 router.put("/profile", authenticate, updateProfile);
 
-// ✅ Changement de mot de passe
+// ✅ Change password
 router.post("/change-password", authenticate, changePassword);
 
-// ✅ Envoi d'un e-mail de réinitialisation
+// ✅ Send password reset email
 router.post("/forget-password", sendPasswordResetEmail);
 
-// ✅ Réinitialisation du mot de passe via lien
+// ✅ Reset password via link
 router.post("/reset-password/:token", resetPassword);
 
 module.exports = router;

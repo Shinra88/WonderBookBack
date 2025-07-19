@@ -5,11 +5,11 @@ const { getAllUsers, updateUser, deleteUser, updateUserStatus } = require('../co
 const authenticate = require('../middleware/authenticate');
 const authorizeRoles = require('../middleware/authorizeRoles');
 
-// 👮 Toutes les routes ici nécessitent un rôle admin
+// 👮 All routes here require an admin role
 router.use(authenticate);
 router.use(authorizeRoles('admin'));
 
-// Routes admin pour gestion utilisateurs
+// Admin routes for user management
 router.get('/users', getAllUsers);
 router.put('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);

@@ -1,7 +1,7 @@
 // controllers/postsController.js
 const { ObjectId } = require("mongodb");
 
-// 📌 Récupérer tous les posts
+// 📌 Retrieve all posts
 async function getPosts(req, res) {
   try {
     const db = req.app.locals.mongoDB;
@@ -13,7 +13,7 @@ async function getPosts(req, res) {
   }
 }
 
-// 📌 Ajouter un post
+// 📌 Add a post
 async function addPost(req, res) {
     const { topicId, content } = req.body;
   
@@ -44,7 +44,7 @@ async function addPost(req, res) {
     }
   }
   
-// 📌 Récupérer tous les posts d’un topic
+// 📌 Retrieve all posts from a topic
 async function getPostsByTopicId(req, res) {
   const { topicId } = req.params;
 

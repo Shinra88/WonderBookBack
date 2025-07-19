@@ -1,6 +1,5 @@
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -19,12 +18,22 @@ model book_categories {
   @@index([categoryId], map: "fk_category")
 }
 
+model book_publishers {
+  bookId      Int
+  publisherId Int
+  books       books      @relation(fields: [bookId], references: [bookId], onDelete: Cascade, onUpdate: Restrict, map: "book_publishers_ibfk_1")
+  publishers  publishers @relation(fields: [publisherId], references: [publisherId], onDelete: Cascade, onUpdate: Restrict, map: "book_publishers_ibfk_2")
+
+  @@id([bookId, publisherId])
+  @@index([publisherId], map: "publisherId")
+}
+
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model books {
   bookId          Int               @id @default(autoincrement())
   author          String            @db.VarChar(50)
   title           String            @unique(map: "title_2") @db.VarChar(50)
-  date            DateTime          @default(dbgenerated("('0000-00-00')")) @db.Date
+  date            DateTime          @default("2000-01-01T00:00:00.000Z") @db.Date
   created_at      DateTime          @default(now()) @db.Timestamp(0)
   updated_at      DateTime?         @db.Timestamp(0)
   validated_by    Int?
@@ -65,9 +74,9 @@ model collection {
   user         user      @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_collection_user")
 
   @@unique([userId, bookId], map: "unique_user_book")
+  @@index([added_at], map: "added_at")
   @@index([bookId], map: "fk_collection_book")
   @@index([userId], map: "fk_collection_user")
-  @@index([added_at], map: "added_at")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -84,32 +93,8 @@ model comments {
 
   @@unique([userId, bookId], map: "unique_user_book_comment")
   @@index([bookId], map: "bookId")
-  @@index([userId], map: "userId")
   @@index([created_at], map: "created_at")
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model user {
-  userId              Int                  @id @default(autoincrement())
-  name                String               @unique(map: "name") @db.VarChar(50)
-  mail                String               @unique(map: "mail") @db.VarChar(255)
-  password            String               @db.VarChar(255)
-  avatar              String?              @db.LongText
-  aboutMe             String?              @db.LongText
-  repForum            Int                  @default(0) @db.TinyInt
-  addCom              Int                  @default(0) @db.TinyInt
-  addBook             Int                  @default(0) @db.TinyInt
-  news                Int                  @default(0) @db.TinyInt
-  created_at          DateTime             @default(now()) @db.Timestamp(0)
-  updated_at          DateTime?            @db.Timestamp(0)
-  status              user_status?         @default(active)
-  suspended_until     DateTime?            @db.DateTime(0)
-  role                user_role            @default(user)
-  books               books[]
-  collection          collection[]
-  comments            comments[]
-  logs                logs[]
-  passwordResetTokens passwordResetToken[]
+  @@index([userId], map: "userId")
 }
 
 model logs {
@@ -124,22 +109,6 @@ model logs {
   @@index([userId], map: "userId")
 }
 
-model book_publishers {
-  bookId      Int
-  publisherId Int
-  books       books      @relation(fields: [bookId], references: [bookId], onDelete: Cascade, onUpdate: Restrict, map: "book_publishers_ibfk_1")
-  publishers  publishers @relation(fields: [publisherId], references: [publisherId], onDelete: Cascade, onUpdate: Restrict, map: "book_publishers_ibfk_2")
-
-  @@id([bookId, publisherId])
-  @@index([publisherId], map: "publisherId")
-}
-
-model publishers {
-  publisherId     Int               @id @default(autoincrement())
-  name            String            @unique(map: "name") @db.VarChar(100)
-  book_publishers book_publishers[]
-}
-
 model passwordResetToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique(map: "token") @db.VarChar(255)
@@ -148,6 +117,36 @@ model passwordResetToken {
   user      user     @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: Restrict, map: "fk_password_user")
 
   @@index([userId], map: "idx_userId")
+}
+
+model publishers {
+  publisherId     Int               @id @default(autoincrement())
+  name            String            @unique(map: "name") @db.VarChar(100)
+  book_publishers book_publishers[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user {
+  userId             Int                  @id @default(autoincrement())
+  name               String               @unique(map: "name") @db.VarChar(50)
+  mail               String               @unique(map: "mail") @db.VarChar(255)
+  password           String               @db.VarChar(255)
+  avatar             String?              @db.LongText
+  aboutMe            String?              @db.LongText
+  repForum           Int                  @default(0) @db.TinyInt
+  addCom             Int                  @default(0) @db.TinyInt
+  addBook            Int                  @default(0) @db.TinyInt
+  news               Int                  @default(0) @db.TinyInt
+  created_at         DateTime             @default(now()) @db.Timestamp(0)
+  updated_at         DateTime?            @db.Timestamp(0)
+  status             user_status?         @default(active)
+  suspended_until    DateTime?            @db.DateTime(0)
+  role               user_role            @default(user)
+  books              books[]
+  collection         collection[]
+  comments           comments[]
+  logs               logs[]
+  passwordResetToken passwordResetToken[]
 }
 
 enum logs_targetType {
