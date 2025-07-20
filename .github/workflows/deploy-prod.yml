@@ -11,7 +11,6 @@ env:
   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
   ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
   ECS_TASK_DEFINITION: ${{ secrets.ECS_TASK_DEFINITION }}
-  CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
 
 jobs:
   deploy:
@@ -54,4 +53,3 @@ jobs:
         service: ${{ env.ECS_SERVICE }}
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
-
