@@ -1,21 +1,18 @@
 name: Deploy to ECS (prod)
-
 on:
   push:
     branches:
       - prod
-
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
   ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
-  ECS_TASK_DEFINITION: ecs-task-def.json  # adapte si besoin
+  ECS_TASK_DEFINITION: ecs-task-def.json
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,6 +38,14 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+      - name: Debug original task definition
+        run: |
+          echo "=== Original task definition ==="
+          cat ${{ env.ECS_TASK_DEFINITION }}
+          echo ""
+          echo "=== Container names in original task definition ==="
+          cat ${{ env.ECS_TASK_DEFINITION }} | jq '.containerDefinitions[].name'
+
       - name: Render ECS task definition with new image
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -49,12 +54,15 @@ jobs:
           container-name: wonderbook-backend
           image: ${{ steps.build-image.outputs.image }}
 
-      - name: Debug container names in rendered task definition
+      - name: Debug rendered task definition
         run: |
-          echo "${{ steps.task-def.outputs.task-definition }}" | jq '.containerDefinitions[].name'
-
-      - name: Show rendered ECS task definition
-        run: |
+          echo "=== Rendered task definition file path ==="
+          echo "${{ steps.task-def.outputs.task-definition }}"
+          echo ""
+          echo "=== Rendered task definition content ==="
+          cat ${{ steps.task-def.outputs.task-definition }}
+          echo ""
+          echo "=== Container names in rendered task definition ==="
           cat ${{ steps.task-def.outputs.task-definition }} | jq '.containerDefinitions[].name'
 
       - name: Deploy to ECS
