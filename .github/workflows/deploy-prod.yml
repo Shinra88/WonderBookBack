@@ -48,6 +48,10 @@ jobs:
           task-definition: ${{ env.ECS_TASK_DEFINITION }}
           container-name: wonderbook-backend
           image: ${{ steps.build-image.outputs.image }}
+          
+      - name: Debug container names in rendered task definition
+        run: |
+          echo "${{ steps.task-def.outputs.task-definition }}" | jq '.containerDefinitions[].name'
 
       - name: Show rendered ECS task definition
         run: |
