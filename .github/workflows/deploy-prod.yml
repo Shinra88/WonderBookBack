@@ -72,10 +72,26 @@ jobs:
           echo "=== Container names in rendered task definition ==="
           cat ${{ steps.task-def.outputs.task-definition }} | jq '.containerDefinitions[].name'
 
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
+      - name: Register new task definition and update ECS service
+        run: |
+          echo "=== Registering new task definition ==="
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://${{ steps.task-def.outputs.task-definition }} \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          
+          echo "New task definition registered: $TASK_DEF_ARN"
+          
+          echo "=== Updating ECS service ==="
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --task-definition $TASK_DEF_ARN \
+            --force-new-deployment
+          
+          echo "=== Waiting for service to become stable ==="
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }}
+          
+          echo "=== Deployment completed successfully ==="
