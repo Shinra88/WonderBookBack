@@ -56,7 +56,7 @@ jobs:
 
       - name: Validate container name in task definition
         run: |
-          echo "${{ steps.task-def.outputs.task-definition }}" | jq '.containerDefinitions[].name'
+          cat ${{ steps.task-def.outputs.task-definition }} | jq '.containerDefinitions[].name'
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
