@@ -7,7 +7,7 @@
   "executionRoleArn": "arn:aws:iam::297504823415:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
-      "name": "app",
+      "name": "wonderbook-back",
       "image": "IMAGE",
       "essential": true,
       "portMappings": [

@@ -50,7 +50,7 @@ jobs:
             "executionRoleArn": "arn:aws:iam::297504823415:role/ecsTaskExecutionRole",
             "containerDefinitions": [
               {
-                "name": "app",
+                "name": "wonderbook-back",
                 "image": "${{ steps.build-image.outputs.image }}",
                 "essential": true,
                 "portMappings": [
