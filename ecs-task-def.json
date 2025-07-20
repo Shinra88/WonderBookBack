@@ -5,6 +5,7 @@
   "cpu": "256",
   "memory": "512",
   "executionRoleArn": "arn:aws:iam::297504823415:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::297504823415:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
       "name": "wonderbook-backend",
@@ -21,7 +22,15 @@
           "name": "NODE_ENV",
           "value": "production"
         }
-      ]
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/wonderbook-back-task",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
     }
   ]
 }
