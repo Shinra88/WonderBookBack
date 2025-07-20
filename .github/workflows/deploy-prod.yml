@@ -33,45 +33,27 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-      - name: Create task definition with new image
+      - name: Get task definition with environment variables
         run: |
-          cat > task-definition-new.json << EOF
-          {
-            "family": "wonderbook-back-task",
-            "networkMode": "awsvpc",
-            "requiresCompatibilities": ["FARGATE"],
-            "cpu": "1024",
-            "memory": "3072",
-            "executionRoleArn": "${{ env.TASK_EXECUTION_ROLE_ARN }}",
-            "containerDefinitions": [
-              {
-                "name": "wonderbook-back",
-                "image": "${{ steps.build-image.outputs.image }}",
-                "essential": true,
-                "portMappings": [
-                  {
-                    "containerPort": 5000,
-                    "protocol": "tcp"
-                  }
-                ],
-                "environment": [
-                  {
-                    "name": "NODE_ENV",
-                    "value": "production"
-                  }
-                ],
-                "logConfiguration": {
-                  "logDriver": "awslogs",
-                  "options": {
-                    "awslogs-group": "/ecs/wonderbook-back-task",
-                    "awslogs-region": "${{ env.AWS_REGION }}",
-                    "awslogs-stream-prefix": "ecs"
-                  }
-                }
-              }
-            ]
-          }
-          EOF
+          echo "=== Getting task definition revision 5 (with environment variables) ==="
+          aws ecs describe-task-definition \
+            --task-definition wonderbook-back-task:5 \
+            --query 'taskDefinition' \
+            > current-task-def.json
+          
+          echo "=== Task definition content ==="
+          cat current-task-def.json
+          
+          echo "=== Environment variables found ==="
+          cat current-task-def.json | jq '.containerDefinitions[0].environment // []'
+          
+      - name: Create new task definition with updated image
+        run: |
+          echo "=== Creating new task definition with updated image ==="
+          jq --arg IMAGE "${{ steps.build-image.outputs.image }}" \
+             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy) | 
+              .containerDefinitions[0].image = $IMAGE' \
+             current-task-def.json > task-definition-new.json
       - name: Debug new task definition
         run: |
           echo "=== New task definition content ==="
@@ -79,6 +61,9 @@ jobs:
           echo ""
           echo "=== Container names in new task definition ==="
           cat task-definition-new.json | jq '.containerDefinitions[].name'
+          echo ""
+          echo "=== Environment variables in new task definition ==="
+          cat task-definition-new.json | jq '.containerDefinitions[0].environment // []'
       - name: Deploy to ECS
         run: |
           echo "=== Registering new task definition ==="
