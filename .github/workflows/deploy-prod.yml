@@ -10,7 +10,7 @@ env:
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
   ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
-  ECS_TASK_DEFINITION: ecs-task-def.json  # chemin relatif dans le repo
+  ECS_TASK_DEFINITION: ecs-task-def.json  # adapte si nécessaire
 
 jobs:
   deploy:
@@ -53,6 +53,10 @@ jobs:
         run: |
           echo "${{ steps.task-def.outputs.task-definition }}" > rendered-task.json
           cat rendered-task.json
+
+      - name: Validate container name in task definition
+        run: |
+          echo "${{ steps.task-def.outputs.task-definition }}" | jq '.containerDefinitions[].name'
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
