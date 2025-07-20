@@ -8,7 +8,7 @@
   "containerDefinitions": [
     {
       "name": "wonderbook-backend",
-      "image": "REPLACEME_IMAGE",
+      "image": "IMAGE",
       "essential": true,
       "portMappings": [
         {
