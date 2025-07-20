@@ -10,7 +10,7 @@ env:
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
   ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
-  ECS_TASK_DEFINITION: ecs-task-def.json  # adapte si nécessaire
+  ECS_TASK_DEFINITION: ecs-task-def.json  # adapte si besoin
 
 jobs:
   deploy:
@@ -54,15 +54,10 @@ jobs:
           echo "${{ steps.task-def.outputs.task-definition }}" > rendered-task.json
           cat rendered-task.json
 
-      - name: Validate container name in task definition
-        run: |
-          cat ${{ steps.task-def.outputs.task-definition }} | jq '.containerDefinitions[].name'
-
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
-          container-name: wonderbook-backend
           wait-for-service-stability: true
