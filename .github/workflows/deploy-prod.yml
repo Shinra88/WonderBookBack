@@ -58,7 +58,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ${{ env.ECS_TASK_DEFINITION }}
-          container-name: wonderbook-backend
+          container-name: app
           image: ${{ steps.build-image.outputs.image }}
 
       - name: Debug rendered task definition

@@ -7,7 +7,7 @@
   "executionRoleArn": "arn:aws:iam::297504823415:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
-      "name": "wonderbook-backend",
+      "name": "app",
       "image": "IMAGE",
       "essential": true,
       "portMappings": [
