@@ -3,13 +3,12 @@ on:
   push:
     branches:
       - prod
+
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
   ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
-  ECS_TASK_DEFINITION: ecs-task-def.json
-  CONTAINER_NAME: wonderbook-backend
 
 jobs:
   deploy:
@@ -39,44 +38,51 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Debug container name and original task definition
+      - name: Create task definition with new image
         run: |
-          echo "=== Container name from secret ==="
-          echo "Container name: ${{ secrets.CONTAINER_NAME }}"
-          echo "Container name length: ${#CONTAINER_NAME}"
-          echo ""
-          echo "=== Original task definition ==="
-          cat ${{ env.ECS_TASK_DEFINITION }}
-          echo ""
-          echo "=== Container names in original task definition ==="
-          cat ${{ env.ECS_TASK_DEFINITION }} | jq '.containerDefinitions[].name'
-        env:
-          CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
+          cat > task-definition-new.json << EOF
+          {
+            "family": "wonderbook-back-task",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "256",
+            "memory": "512",
+            "executionRoleArn": "arn:aws:iam::297504823415:role/ecsTaskExecutionRole",
+            "containerDefinitions": [
+              {
+                "name": "app",
+                "image": "${{ steps.build-image.outputs.image }}",
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": 5000,
+                    "protocol": "tcp"
+                  }
+                ],
+                "environment": [
+                  {
+                    "name": "NODE_ENV",
+                    "value": "production"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
 
-      - name: Render ECS task definition with new image
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ${{ env.ECS_TASK_DEFINITION }}
-          container-name: app
-          image: ${{ steps.build-image.outputs.image }}
-
-      - name: Debug rendered task definition
+      - name: Debug new task definition
         run: |
-          echo "=== Rendered task definition file path ==="
-          echo "${{ steps.task-def.outputs.task-definition }}"
+          echo "=== New task definition content ==="
+          cat task-definition-new.json
           echo ""
-          echo "=== Rendered task definition content ==="
-          cat ${{ steps.task-def.outputs.task-definition }}
-          echo ""
-          echo "=== Container names in rendered task definition ==="
-          cat ${{ steps.task-def.outputs.task-definition }} | jq '.containerDefinitions[].name'
+          echo "=== Container names in new task definition ==="
+          cat task-definition-new.json | jq '.containerDefinitions[].name'
 
-      - name: Register new task definition and update ECS service
+      - name: Deploy to ECS
         run: |
           echo "=== Registering new task definition ==="
           TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://${{ steps.task-def.outputs.task-definition }} \
+            --cli-input-json file://task-definition-new.json \
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
           
