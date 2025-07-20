@@ -64,4 +64,5 @@ jobs:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
+          container-name: wonderbook-backend
           wait-for-service-stability: true
