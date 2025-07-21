@@ -11,7 +11,7 @@ afterAll(async () => {
 
 describe('Health check', () => {
   it('should respond with 200', async () => {
-    const res = await request(app).get('/api/health');
+    const res = await request(app).get('/health');
     expect(res.statusCode).toEqual(200);
     expect(res.body.status).toBe('ok');
   });
