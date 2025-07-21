@@ -43,33 +43,26 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
-
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
-
       - name: 📦 Install dependencies
         run: npm ci
-
       - name: 🔍 Run ESLint
         run: npm run lint
         continue-on-error: false
-
       - name: 🎨 Check Prettier formatting
         run: npm run format:check
         continue-on-error: true
-
       - name: 🧪 Run unit tests
         run: npm run test:run
         env:
           CI: true
-
       - name: 📊 Generate coverage report
         run: npm run test:coverage
         continue-on-error: true
-
       - name: 🔒 Security audit
         run: npm audit --audit-level=moderate
         continue-on-error: true
@@ -82,27 +75,22 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
-
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
-
       - name: 📦 Install dependencies
         run: npm ci
-
       - name: 🔑 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
       - name: 🔐 Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
       - name: 🐳 Build & Push Docker image
         id: build-image
         env:
@@ -120,7 +108,6 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
-
       - name: 🔑 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -131,15 +118,16 @@ jobs:
       - name: 🔍 Get current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition wonderbook-back-task:5 
+            --task-definition wonderbook-back-task:5 \
             --query 'taskDefinition' > current-task-def.json
 
       - name: 🛠️ Create new task definition with updated image
         run: |
           IMAGE_URI=${{ needs.build-and-push.outputs.image }}
+          echo "Using image: $IMAGE_URI"
           jq --arg IMAGE "$IMAGE_URI" \
-             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
-              | .containerDefinitions[0].image = $IMAGE' \
+             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
+              .containerDefinitions[0].image = $IMAGE' \
              current-task-def.json > task-definition-new.json
 
       - name: 🚀 Deploy new task definition to ECS
@@ -158,7 +146,7 @@ jobs:
 
           echo "Waiting for service to become stable..."
           timeout 900 aws ecs wait services-stable \
-            --cluste $ECS_CLUSTER \
+            --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE
 
       - name: ✅ Confirm Deployment
