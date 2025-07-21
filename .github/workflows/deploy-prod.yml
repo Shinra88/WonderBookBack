@@ -72,6 +72,8 @@ jobs:
     needs: test-and-quality
     if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
@@ -123,7 +125,7 @@ jobs:
 
       - name: 🛠️ Create new task definition with updated image
         run: |
-          IMAGE_URI=${{ needs.build-and-push.outputs.image }}
+          IMAGE_URI="${{ needs.build-and-push.outputs.image }}"
           echo "Using image: $IMAGE_URI"
           jq --arg IMAGE "$IMAGE_URI" \
              'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
