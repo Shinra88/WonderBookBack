@@ -131,7 +131,7 @@ jobs:
       - name: 🔍 Get current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition $ECS_SERVICE \
+            --task-definition $ECS_TASK_DEFINITION 
             --query 'taskDefinition' > current-task-def.json
 
       - name: 🛠️ Create new task definition with updated image

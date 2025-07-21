@@ -22,7 +22,7 @@ async function connectMariaDBWithRetry(retries = 5, delay = 5000) {
       await connection.end();
       console.log('✅ MariaDB est accessible');
       return;
-    } catch (err) {
+    } catch {
       console.log('❌ MariaDB non prêt, nouvelle tentative...');
       await new Promise((res) => setTimeout(res, delay));
     }
