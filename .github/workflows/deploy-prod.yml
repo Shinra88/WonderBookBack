@@ -4,210 +4,548 @@ on:
   push:
     branches:
       - main
+
       - develop
+
       - prod
+
   pull_request:
     branches:
       - main
+
       - prod
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
+
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+
   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+
   ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+
   TASK_EXECUTION_ROLE_ARN: ${{ secrets.TASK_EXECUTION_ROLE_ARN }}
 
 jobs:
   # 🧪 JOB 1: Test, Lint, Sécurité
+
   test-and-quality:
     runs-on: ubuntu-latest
+
     env:
       CI: true
+
       MONGO_URI: ${{ secrets.MONGO_URI }}
+
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+
       MYSQL_PORT: ${{ secrets.MYSQL_PORT }}
+
       MYSQL_USER: ${{ secrets.MYSQL_USER }}
+
       MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+
       MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
       AWS_REGION: ${{ secrets.AWS_REGION }}
+
       S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+
       RECAPTCHA_SECRET: ${{ secrets.RECAPTCHA_SECRET }}
+
       GMAIL_USER: ${{ secrets.GMAIL_USER }}
+
       GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
       FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+
     steps:
       - name: 📥 Checkout code
+
         uses: actions/checkout@v4
+
       - name: 🟢 Setup Node.js
+
         uses: actions/setup-node@v3
+
         with:
           node-version: '18'
+
           cache: 'npm'
+
       - name: 📦 Install dependencies
+
         run: npm ci
+
       - name: 🔍 Run ESLint
+
         run: npm run lint
+
         continue-on-error: false
+
       - name: 🎨 Check Prettier formatting
+
         run: npm run format:check
+
         continue-on-error: true
+
       - name: 🧪 Run unit tests
+
         run: npm run test:run
+
         env:
           CI: true
+
       - name: 📊 Generate coverage report
+
         run: npm run test:coverage
+
         continue-on-error: true
+
       - name: 🔒 Security audit
+
         run: npm audit --audit-level=moderate
+
         continue-on-error: true
 
   # 🏗️ JOB 2: Build Docker & Push to ECR
+
   build-and-push:
     needs: test-and-quality
+
     if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+
     runs-on: ubuntu-latest
+
     outputs:
       image: ${{ steps.build-image.outputs.image }}
+
     steps:
       - name: 📥 Checkout code
+
         uses: actions/checkout@v4
+
       - name: 🟢 Setup Node.js
+
         uses: actions/setup-node@v3
+
         with:
           node-version: '18'
+
           cache: 'npm'
+
       - name: 📦 Install dependencies
+
         run: npm ci
+
       - name: 🔑 Configure AWS credentials
+
         uses: aws-actions/configure-aws-credentials@v4
+
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
           aws-region: ${{ env.AWS_REGION }}
+
       - name: 🔐 Login to Amazon ECR
+
         id: login-ecr
+
         uses: aws-actions/amazon-ecr-login@v2
+
       - name: 🐳 Build & Push Docker image
+
         id: build-image
+
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+
           IMAGE_TAG: ${{ github.sha }}
+
         run: |
+
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   # 🚀 JOB 3: Deploy to ECS
+
   deploy:
     needs: build-and-push
+
     runs-on: ubuntu-latest
+
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
+
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+
       ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+
       ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+
       TASK_EXECUTION_ROLE_ARN: ${{ secrets.TASK_EXECUTION_ROLE_ARN }}
+
     steps:
       - name: 📥 Checkout code
+
         uses: actions/checkout@v4
+
       - name: 🔑 Configure AWS credentials
+
         uses: aws-actions/configure-aws-credentials@v4
+
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
           aws-region: ${{ env.AWS_REGION }}
+
       - name: 🔐 Login to Amazon ECR
+
         id: login-ecr
+
         uses: aws-actions/amazon-ecr-login@v2
+
       - name: 🏷️ Set image tag
+
         id: set-image
+
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+
         run: |
+
           # Utilise l'image du job précédent si disponible, sinon reconstruit l'URI
+
           if [ -n "${{ needs.build-and-push.outputs.image }}" ]; then
+
             echo "image=${{ needs.build-and-push.outputs.image }}" >> $GITHUB_OUTPUT
+
           else
+
             echo "image=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
           fi
+
       - name: 🔍 Get current task definition
+
         run: |
+
           echo "=== Getting task definition revision 5 (with environment variables) ==="
+
           aws ecs describe-task-definition \
+
             --task-definition wonderbook-back-task:5 \
+
             --query 'taskDefinition' \
+
             > current-task-def.json
 
+
           echo "=== Task definition content ==="
+
           cat current-task-def.json
 
+
           echo "=== Environment variables found ==="
+
           cat current-task-def.json | jq '.containerDefinitions[0].environment // []'
+
       - name: 🛠️ Create new task definition with updated image
+
         run: |
+
           echo "=== Creating new task definition with updated image ==="
+
           echo "Using image: ${{ steps.set-image.outputs.image }}"
+
           jq --arg IMAGE "${{ steps.set-image.outputs.image }}" \
+
              'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy) | 
+
               .containerDefinitions[0].image = $IMAGE' \
+
              current-task-def.json > task-definition-new.json
+
       - name: 🐛 Debug new task definition
+
         run: |
+
           echo "=== New task definition content ==="
+
           cat task-definition-new.json
+
           echo ""
+
           echo "=== Container names in new task definition ==="
+
           cat task-definition-new.json | jq '.containerDefinitions[].name'
+
           echo ""
+
           echo "=== Environment variables in new task definition ==="
+
           cat task-definition-new.json | jq '.containerDefinitions[0].environment // []'
+
       - name: 🚀 Deploy to ECS
+
+        id: deploy-ecs
+
         run: |
+
           echo "=== Registering new task definition ==="
+
           TASK_DEF_ARN=$(aws ecs register-task-definition \
+
             --cli-input-json file://task-definition-new.json \
+
             --query 'taskDefinition.taskDefinitionArn' \
+
             --output text)
+
 
           echo "New task definition registered: $TASK_DEF_ARN"
 
+
           echo "=== Updating ECS service with rolling deployment ==="
+
           aws ecs update-service \
+
             --cluster ${{ env.ECS_CLUSTER }} \
+
             --service ${{ env.ECS_SERVICE }} \
+
             --task-definition $TASK_DEF_ARN \
+
             --deployment-configuration "minimumHealthyPercent=50,maximumPercent=200" \
+
             --force-new-deployment
 
-          echo "=== Waiting for service to become stable (max 15 minutes) ==="
-          timeout 900 aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }} || {
-            echo "Timeout reached, checking service status..."
-            RUNNING_COUNT=$(aws ecs describe-services \
+      - name: 📊 Monitor deployment progress
+
+        run: |
+
+          for i in {1..30}; do
+
+            echo "=== Check $i/30 (every 30 seconds) ==="
+
+            aws ecs describe-services \
+
               --cluster ${{ env.ECS_CLUSTER }} \
+
               --services ${{ env.ECS_SERVICE }} \
-              --query 'services[0].runningCount')
-            DESIRED_COUNT=$(aws ecs describe-services \
-              --cluster ${{ env.ECS_CLUSTER }} \
-              --services ${{ env.ECS_SERVICE }} \
-              --query 'services[0].desiredCount')
+
+              --query 'services[0].{desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments[*].{status:status,desired:desiredCount,running:runningCount,pending:pendingCount}}' \
+
+              --output table
+
             
-            if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ]; then
-              echo "Service is running with desired count, deployment likely successful"
-              exit 0
-            else
-              echo "Service is not stable, deployment may have failed"
-              exit 1
+
+            RUNNING=$(aws ecs describe-services \
+
+              --cluster ${{ env.ECS_CLUSTER }} \
+
+              --services ${{ env.ECS_SERVICE }} \
+
+              --query 'services[0].runningCount' \
+
+              --output text)
+
+            
+
+            DESIRED=$(aws ecs describe-services \
+
+              --cluster ${{ env.ECS_CLUSTER }} \
+
+              --services ${{ env.ECS_SERVICE }} \
+
+              --query 'services[0].desiredCount' \
+
+              --output text)
+
+            
+
+            if [ "$RUNNING" -eq "$DESIRED" ] && [ "$RUNNING" -gt 0 ]; then
+
+              echo "✅ Service is stable with $RUNNING running tasks"
+
+              break
+
             fi
+
+            
+
+            sleep 30
+
+          done
+
+      - name: ⏳ Wait for service stability
+
+        run: |
+
+          echo "=== Waiting for service to become stable (max 15 minutes) ==="
+
+          timeout 900 aws ecs wait services-stable \
+
+            --cluster ${{ env.ECS_CLUSTER }} \
+
+            --services ${{ env.ECS_SERVICE }} || {
+
+            echo "Timeout reached, checking service status..."
+
+            RUNNING_COUNT=$(aws ecs describe-services \
+
+              --cluster ${{ env.ECS_CLUSTER }} \
+
+              --services ${{ env.ECS_SERVICE }} \
+
+              --query 'services[0].runningCount' \
+
+              --output text)
+
+            DESIRED_COUNT=$(aws ecs describe-services \
+
+              --cluster ${{ env.ECS_CLUSTER }} \
+
+              --services ${{ env.ECS_SERVICE }} \
+
+              --query 'services[0].desiredCount' \
+
+              --output text)
+
+            
+
+            if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ] && [ "$RUNNING_COUNT" -gt 0 ]; then
+
+              echo "Service is running with desired count, deployment likely successful"
+
+              exit 0
+
+            else
+
+              echo "Service is not stable, deployment may have failed"
+
+              exit 1
+
+            fi
+
           }
 
+
           echo "=== Deployment completed successfully ==="
+
+      - name: 🔍 Check deployment status and logs
+
+        if: failure() || cancelled()
+
+        run: |
+
+          echo "=== Service events ==="
+
+          aws ecs describe-services \
+
+            --cluster ${{ env.ECS_CLUSTER }} \
+
+            --services ${{ env.ECS_SERVICE }} \
+
+            --query 'services[0].events[0:10]' \
+
+            --output table
+
+
+
+          echo "=== Failed tasks ==="
+
+          TASK_ARNS=$(aws ecs list-tasks \
+
+            --cluster ${{ env.ECS_CLUSTER }} \
+
+            --service-name ${{ env.ECS_SERVICE }} \
+
+            --desired-status STOPPED \
+
+            --query 'taskArns[0:5]' \
+
+            --output json)
+
+
+
+          if [ "$TASK_ARNS" != "[]" ]; then
+
+            aws ecs describe-tasks \
+
+              --cluster ${{ env.ECS_CLUSTER }} \
+
+              --tasks $TASK_ARNS \
+
+              --query 'tasks[*].{taskArn:taskArn,lastStatus:lastStatus,stoppedReason:stoppedReason,stopCode:stopCode}' \
+
+              --output table
+
+          fi
+
+      - name: 📝 Get CloudWatch logs
+
+        if: failure() || cancelled()
+
+        continue-on-error: true
+
+        run: |
+
+          echo "=== Recent container logs ==="
+
+          LOG_GROUP="/ecs/wonderbook-back-task"
+
+          LOG_STREAM=$(aws logs describe-log-streams \
+
+            --log-group-name $LOG_GROUP \
+
+            --order-by LastEventTime \
+
+            --descending \
+
+            --max-items 1 \
+
+            --query 'logStreams[0].logStreamName' \
+
+            --output text 2>/dev/null || echo "")
+
+
+
+          if [ "$LOG_STREAM" != "None" ] && [ -n "$LOG_STREAM" ]; then
+
+            aws logs get-log-events \
+
+              --log-group-name $LOG_GROUP \
+
+              --log-stream-name "$LOG_STREAM" \
+
+              --limit 50 \
+
+              --query 'events[*].message' \
+
+              --output text
+
+          else
+
+            echo "No log stream found or accessible"
+
+          fi
+
       - name: ✅ Confirm Deployment
+
         run: echo "✅ Backend successfully deployed!"
