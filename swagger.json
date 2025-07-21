@@ -5,9 +5,7 @@
     "version": "1.0.0",
     "description": "Documentation complète WonderBook générée depuis les contrôleurs"
   },
-  "servers": [
-    { "url": "http://localhost:5000/api" }
-  ],
+  "servers": [{ "url": "http://localhost:5000/api" }],
   "paths": {
     "/auth/register": {
       "post": {
@@ -140,7 +138,7 @@
         }
       }
     },
-    
+
     "/books": {
       "get": {
         "tags": ["Books"],
@@ -646,6 +644,3 @@
     }
   }
 }
-
-
-

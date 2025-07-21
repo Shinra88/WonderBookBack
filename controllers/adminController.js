@@ -5,12 +5,7 @@ const prisma = new PrismaClient();
 // 🔍 GET /api/admin/users → paginated list with search and filtering
 exports.getAllUsers = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      search = '',
-      status = 'all',
-    } = req.query;
+    const { page = 1, limit = 10, search = '', status = 'all' } = req.query;
 
     const currentPage = parseInt(page, 10);
     const take = parseInt(limit, 10);
@@ -18,9 +13,8 @@ exports.getAllUsers = async (req, res) => {
 
     const where = {
       name: {
-        contains: search.toLowerCase(),
-      },
-      
+        contains: search.toLowerCase()
+      }
     };
 
     if (status !== 'all') {
@@ -40,16 +34,16 @@ exports.getAllUsers = async (req, res) => {
         created_at: true,
         avatar: true,
         aboutMe: true,
-        status: true,
-      },
+        status: true
+      }
     });
 
     const total = await prisma.user.count({ where });
 
     res.json({ users, total });
   } catch (err) {
-    console.error("❌ Erreur getAllUsers:", err);
-    res.status(500).json({ error: "Erreur serveur" });
+    console.error('❌ Erreur getAllUsers:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 };
 
@@ -61,13 +55,13 @@ exports.updateUser = async (req, res) => {
   try {
     const updated = await prisma.user.update({
       where: { userId: Number(id) },
-      data: { role, name, mail },
+      data: { role, name, mail }
     });
 
-    res.json({ message: "Utilisateur mis à jour", user: updated });
+    res.json({ message: 'Utilisateur mis à jour', user: updated });
   } catch (err) {
-    console.error("Erreur updateUser:", err);
-    res.status(500).json({ error: "Erreur serveur" });
+    console.error('Erreur updateUser:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 };
 
@@ -77,10 +71,10 @@ exports.deleteUser = async (req, res) => {
 
   try {
     await prisma.user.delete({ where: { userId: Number(id) } });
-    res.json({ message: "Utilisateur supprimé" });
+    res.json({ message: 'Utilisateur supprimé' });
   } catch (err) {
-    console.error("Erreur deleteUser:", err);
-    res.status(500).json({ error: "Erreur serveur" });
+    console.error('Erreur deleteUser:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 };
 
@@ -96,13 +90,12 @@ exports.updateUserStatus = async (req, res) => {
   try {
     const updated = await prisma.user.update({
       where: { userId: Number(id) },
-      data: { status },
+      data: { status }
     });
 
-    res.json({ message: "Statut mis à jour", user: updated });
+    res.json({ message: 'Statut mis à jour', user: updated });
   } catch (err) {
-    console.error("Erreur updateUserStatus:", err);
-    res.status(500).json({ error: "Erreur serveur" });
+    console.error('Erreur updateUserStatus:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 };
-

@@ -2,8 +2,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const DEFAULT_COVER = "https://wonderbook-images.s3.eu-north-1.amazonaws.com/covers/default.webp";
-
 // ✅ Add a book to the user's collection
 const addToCollection = async (req, res) => {
   const userId = req.user.userId;
@@ -27,7 +25,7 @@ const addToCollection = async (req, res) => {
     }
 
     const added = await prisma.collection.create({
-      data: { userId, bookId },
+      data: { userId, bookId }
     });
 
     return res.status(201).json({ success: true, data: added });
@@ -48,12 +46,12 @@ const getCollection = async (req, res) => {
   if (year && /^\d{4}$/.test(year)) {
     filtersOnBooks.date = {
       gte: new Date(`${year}-01-01`),
-      lt: new Date(`${parseInt(year, 10) + 1}-01-01`),
+      lt: new Date(`${parseInt(year, 10) + 1}-01-01`)
     };
   } else if (start && end && /^\d{4}$/.test(start) && /^\d{4}$/.test(end)) {
     filtersOnBooks.date = {
       gte: new Date(`${start}-01-01`),
-      lt: new Date(`${parseInt(end, 10) + 1}-01-01`),
+      lt: new Date(`${parseInt(end, 10) + 1}-01-01`)
     };
   }
 
@@ -71,30 +69,32 @@ const getCollection = async (req, res) => {
           ...filtersOnBooks,
           ...(cats.length > 0
             ? type === 'et'
-              ? { AND: cats.map((cat) => ({
-                  book_categories: { some: { categories: { name: cat } } }
-                })) }
+              ? {
+                  AND: cats.map((cat) => ({
+                    book_categories: { some: { categories: { name: cat } } }
+                  }))
+                }
               : { book_categories: { some: { categories: { name: { in: cats } } } } }
-            : {}),
-        },
+            : {})
+        }
       },
       include: {
         books: {
           include: {
             book_categories: { include: { categories: true } },
             book_publishers: { include: { publishers: true } },
-            comments: true,
-          },
-        },
-      },
+            comments: true
+          }
+        }
+      }
     });
 
     if (noted === 'true') {
-      collection = collection.filter(c => c.books.averageRating && c.books.averageRating > 0);
+      collection = collection.filter((c) => c.books.averageRating && c.books.averageRating > 0);
     }
 
     if (commented === 'true') {
-      collection = collection.filter(c => c.books.comments && c.books.comments.length > 0);
+      collection = collection.filter((c) => c.books.comments && c.books.comments.length > 0);
     }
 
     return res.status(200).json(collection);
@@ -113,8 +113,8 @@ const removeFromCollection = async (req, res) => {
     const deleted = await prisma.collection.deleteMany({
       where: {
         userId,
-        bookId: parseInt(bookId, 10),
-      },
+        bookId: parseInt(bookId, 10)
+      }
     });
 
     if (deleted.count === 0) {
@@ -142,9 +142,9 @@ const updateReadStatus = async (req, res) => {
     const updated = await prisma.collection.updateMany({
       where: {
         userId,
-        bookId: parseInt(bookId, 10),
+        bookId: parseInt(bookId, 10)
       },
-      data: { is_read },
+      data: { is_read }
     });
 
     if (updated.count === 0) {
@@ -178,8 +178,8 @@ const getReadingProgress = async (req, res) => {
 
     return res.status(200).json({ cfi: entry?.last_cfi || null });
   } catch (error) {
-    console.error("Erreur récupération CFI :", error);
-    return res.status(500).json({ error: "Erreur serveur." });
+    console.error('Erreur récupération CFI :', error);
+    return res.status(500).json({ error: 'Erreur serveur.' });
   }
 };
 
@@ -190,31 +190,30 @@ const saveReadingProgress = async (req, res) => {
   const { cfi } = req.body;
 
   if (!cfi) {
-    return res.status(400).json({ error: "CFI manquant." });
+    return res.status(400).json({ error: 'CFI manquant.' });
   }
 
   try {
     const updated = await prisma.collection.updateMany({
       where: {
         userId,
-        bookId: parseInt(bookId),
+        bookId: parseInt(bookId)
       },
       data: {
-        last_cfi: cfi,
-      },
+        last_cfi: cfi
+      }
     });
 
     if (updated.count === 0) {
-      return res.status(404).json({ error: "Livre non trouvé dans votre collection." });
+      return res.status(404).json({ error: 'Livre non trouvé dans votre collection.' });
     }
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    console.error("Erreur sauvegarde CFI :", error);
-    return res.status(500).json({ error: "Erreur serveur." });
+    console.error('Erreur sauvegarde CFI :', error);
+    return res.status(500).json({ error: 'Erreur serveur.' });
   }
 };
-
 
 module.exports = {
   addToCollection,
@@ -222,6 +221,5 @@ module.exports = {
   removeFromCollection,
   updateReadStatus,
   getReadingProgress,
-  saveReadingProgress,
+  saveReadingProgress
 };
-

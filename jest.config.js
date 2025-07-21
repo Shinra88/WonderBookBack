@@ -1,8 +1,5 @@
 module.exports = {
   testEnvironment: 'node',
   verbose: true,
-  coveragePathIgnorePatterns: [
-    "/node_modules/",
-    "/dist/"
-  ]
+  coveragePathIgnorePatterns: ['/node_modules/', '/dist/']
 };

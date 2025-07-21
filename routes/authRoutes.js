@@ -1,5 +1,5 @@
 // File: routes/authRoutes.js
-const express = require("express");
+const express = require('express');
 const router = express.Router();
 
 const {
@@ -7,30 +7,30 @@ const {
   loginUser,
   updateProfile,
   changePassword,
-  sendPasswordResetEmail, 
-  resetPassword            
-} = require("../controllers/authController");
+  sendPasswordResetEmail,
+  resetPassword
+} = require('../controllers/authController');
 
-const hashPassword = require("../middleware/hashPassword");
-const authenticate = require("../middleware/authenticate");
-const loginLimiter = require("../middleware/rateLimit");
+const hashPassword = require('../middleware/hashPassword');
+const authenticate = require('../middleware/authenticate');
+const loginLimiter = require('../middleware/rateLimit');
 
 // ✅ Registration with hash + captcha + honeypot
-router.post("/register", hashPassword, registerUser);
+router.post('/register', hashPassword, registerUser);
 
 // ✅ Login with rate limiter
-router.post("/login", loginLimiter, loginUser);
+router.post('/login', loginLimiter, loginUser);
 
 // ✅ Update connected user profile
-router.put("/profile", authenticate, updateProfile);
+router.put('/profile', authenticate, updateProfile);
 
 // ✅ Change password
-router.post("/change-password", authenticate, changePassword);
+router.post('/change-password', authenticate, changePassword);
 
 // ✅ Send password reset email
-router.post("/forget-password", sendPasswordResetEmail);
+router.post('/forget-password', sendPasswordResetEmail);
 
 // ✅ Reset password via link
-router.post("/reset-password/:token", resetPassword);
+router.post('/reset-password/:token', resetPassword);
 
 module.exports = router;

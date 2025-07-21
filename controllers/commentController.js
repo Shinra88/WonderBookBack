@@ -1,18 +1,18 @@
 // 📁 controllers/commentController.js
-const { PrismaClient } = require("@prisma/client");
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const updateAverageRating = async (bookId) => {
   const result = await prisma.comments.aggregate({
     where: { bookId: parseInt(bookId, 10) },
-    _avg: { rating: true },
+    _avg: { rating: true }
   });
 
   const newAverage = result._avg.rating ?? 0;
 
   await prisma.books.update({
     where: { bookId: parseInt(bookId, 10) },
-    data: { averageRating: newAverage },
+    data: { averageRating: newAverage }
   });
 };
 
@@ -23,7 +23,7 @@ const getCommentsByBook = async (req, res) => {
   try {
     const comments = await prisma.comments.findMany({
       where: { bookId: parseInt(bookId, 10) },
-      include: { 
+      include: {
         user: { select: { name: true, avatar: true } }
       },
       orderBy: { created_at: 'desc' }
@@ -31,8 +31,8 @@ const getCommentsByBook = async (req, res) => {
 
     res.status(200).json(comments);
   } catch (error) {
-    console.error("Erreur récupération commentaires :", error);
-    res.status(500).json({ error: "Erreur serveur." });
+    console.error('Erreur récupération commentaires :', error);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 };
 
@@ -43,36 +43,40 @@ const addOrUpdateComment = async (req, res) => {
   const userId = req.user.userId;
 
   if (!content || typeof rating !== 'number') {
-    return res.status(400).json({ error: "Contenu ou note manquant(s)." });
+    return res.status(400).json({ error: 'Contenu ou note manquant(s).' });
   }
 
   try {
     // Check if a comment already exists
     const existing = await prisma.comments.findFirst({
-      where: { bookId: parseInt(bookId, 10), userId },
+      where: { bookId: parseInt(bookId, 10), userId }
     });
 
     if (existing) {
       // ➔ Update
       const updated = await prisma.comments.update({
         where: { commentId: existing.commentId },
-        data: { content, rating },
+        data: { content, rating }
       });
       await updateAverageRating(bookId);
 
-      return res.status(200).json({ success: true, data: updated, message: "Commentaire mis à jour." });
+      return res
+        .status(200)
+        .json({ success: true, data: updated, message: 'Commentaire mis à jour.' });
     } else {
       // ➔ Add
       const newComment = await prisma.comments.create({
-        data: { bookId: parseInt(bookId, 10), userId, content, rating },
+        data: { bookId: parseInt(bookId, 10), userId, content, rating }
       });
       await updateAverageRating(bookId);
 
-      return res.status(201).json({ success: true, data: newComment, message: "Commentaire ajouté." });
+      return res
+        .status(201)
+        .json({ success: true, data: newComment, message: 'Commentaire ajouté.' });
     }
   } catch (error) {
-    console.error("Erreur ajout/modification commentaire :", error);
-    res.status(500).json({ error: "Erreur serveur." });
+    console.error('Erreur ajout/modification commentaire :', error);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 };
 
@@ -83,31 +87,31 @@ const deleteComment = async (req, res) => {
 
   try {
     const deleted = await prisma.comments.deleteMany({
-      where: { bookId: parseInt(bookId, 10), userId },
+      where: { bookId: parseInt(bookId, 10), userId }
     });
 
     await updateAverageRating(bookId);
 
     if (deleted.count === 0) {
-      return res.status(404).json({ error: "Commentaire non trouvé." });
+      return res.status(404).json({ error: 'Commentaire non trouvé.' });
     }
 
     // 🔁 Check if there are any remaining comments from this user for this book
     const remaining = await prisma.comments.findMany({
-      where: { bookId: parseInt(bookId, 10), userId },
+      where: { bookId: parseInt(bookId, 10), userId }
     });
 
     if (remaining.length === 0) {
       await prisma.collection.updateMany({
         where: { bookId: parseInt(bookId, 10), userId },
-        data: { commented: false },
+        data: { commented: false }
       });
     }
 
-    res.status(200).json({ success: true, message: "Commentaire supprimé." });
+    res.status(200).json({ success: true, message: 'Commentaire supprimé.' });
   } catch (error) {
-    console.error("Erreur suppression commentaire :", error);
-    res.status(500).json({ error: "Erreur serveur." });
+    console.error('Erreur suppression commentaire :', error);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 };
 
@@ -116,15 +120,15 @@ const deleteCommentById = async (req, res) => {
 
   try {
     const existingComment = await prisma.comments.findUnique({
-      where: { commentId: parseInt(commentId, 10) },
+      where: { commentId: parseInt(commentId, 10) }
     });
 
     if (!existingComment) {
-      return res.status(404).json({ error: "Commentaire introuvable." });
+      return res.status(404).json({ error: 'Commentaire introuvable.' });
     }
 
     await prisma.comments.delete({
-      where: { commentId: parseInt(commentId, 10) },
+      where: { commentId: parseInt(commentId, 10) }
     });
 
     await updateAverageRating(existingComment.bookId);
@@ -133,24 +137,24 @@ const deleteCommentById = async (req, res) => {
     const remaining = await prisma.comments.findMany({
       where: {
         bookId: existingComment.bookId,
-        userId: existingComment.userId,
-      },
+        userId: existingComment.userId
+      }
     });
 
     if (remaining.length === 0) {
       await prisma.collection.updateMany({
         where: {
           bookId: existingComment.bookId,
-          userId: existingComment.userId,
+          userId: existingComment.userId
         },
-        data: { commented: false },
+        data: { commented: false }
       });
     }
 
-    res.status(200).json({ success: true, message: "Commentaire supprimé par un modérateur." });
+    res.status(200).json({ success: true, message: 'Commentaire supprimé par un modérateur.' });
   } catch (error) {
-    console.error("Erreur suppression admin :", error);
-    res.status(500).json({ error: "Erreur serveur." });
+    console.error('Erreur suppression admin :', error);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 };
 

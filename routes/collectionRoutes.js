@@ -1,21 +1,21 @@
 // routes/collectionRoutes.js
-const express = require("express");
+const express = require('express');
 const router = express.Router();
 
-const authenticate = require("../middleware/authenticate");
+const authenticate = require('../middleware/authenticate');
 const {
   addToCollection,
   getCollection,
   removeFromCollection,
   updateReadStatus,
-  getReadingProgress, 
-  saveReadingProgress,
-} = require("../controllers/collectionController");
+  getReadingProgress,
+  saveReadingProgress
+} = require('../controllers/collectionController');
 
 // 🔒 Routes secure
-router.post("/add", authenticate, addToCollection);
-router.get("/", authenticate, getCollection);
-router.delete("/:bookId", authenticate, removeFromCollection);
+router.post('/add', authenticate, addToCollection);
+router.get('/', authenticate, getCollection);
+router.delete('/:bookId', authenticate, removeFromCollection);
 router.patch('/:bookId', authenticate, updateReadStatus);
 router.get('/progress/:bookId', authenticate, getReadingProgress);
 router.post('/progress/:bookId', authenticate, saveReadingProgress);

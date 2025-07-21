@@ -1,13 +1,13 @@
 // Middleware d'authentification pour vérifier le token JWT
-const jwt = require("jsonwebtoken");
-const { PrismaClient } = require("@prisma/client");
+const jwt = require('jsonwebtoken');
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const SECRET = process.env.JWT_SECRET || "dev_secret";
+const SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function authenticate(req, res, next) {
-  const token = req.headers.authorization?.split(" ")[1];
+  const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
-    return res.status(401).json({ error: "Token manquant" });
+    return res.status(401).json({ error: 'Token manquant' });
   }
 
   try {
@@ -20,12 +20,12 @@ async function authenticate(req, res, next) {
         userId: true,
         name: true,
         avatar: true,
-        role: true,
-      },
+        role: true
+      }
     });
 
     if (!user) {
-      return res.status(401).json({ error: "Utilisateur introuvable." });
+      return res.status(401).json({ error: 'Utilisateur introuvable.' });
     }
 
     // 🟢 Correct addition in req.user
@@ -33,13 +33,13 @@ async function authenticate(req, res, next) {
       userId: user.userId,
       name: user.name,
       avatar: user.avatar,
-      role: user.role,
+      role: user.role
     };
 
     next();
   } catch (error) {
-    console.error("❌ Erreur middleware authenticate :", error);
-    res.status(403).json({ error: "Token invalide ou expiré" });
+    console.error('❌ Erreur middleware authenticate :', error);
+    res.status(403).json({ error: 'Token invalide ou expiré' });
   }
 }
 
