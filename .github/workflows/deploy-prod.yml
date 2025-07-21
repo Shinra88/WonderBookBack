@@ -107,9 +107,17 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+      ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+      ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+      TASK_EXECUTION_ROLE_ARN: ${{ secrets.TASK_EXECUTION_ROLE_ARN }}
+      IMAGE_URI: ${{ needs.build-and-push.outputs.image }} # <=== ici
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+
       - name: 🔑 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -125,12 +133,11 @@ jobs:
 
       - name: 🛠️ Create new task definition with updated image
         run: |
-          IMAGE_URI="${{ needs.build-and-push.outputs.image }}"
           echo "Using image: $IMAGE_URI"
           jq --arg IMAGE "$IMAGE_URI" \
-             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
-              .containerDefinitions[0].image = $IMAGE' \
-             current-task-def.json > task-definition-new.json
+            'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
+            .containerDefinitions[0].image = $IMAGE' \
+            current-task-def.json > task-definition-new.json
 
       - name: 🚀 Deploy new task definition to ECS
         run: |
