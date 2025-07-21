@@ -1,13 +1,12 @@
 // server.js
 
-const express = require('express');
-const app = express();
+const app = require('./app'); // <-- importer l'app existante, pas en recréer une nouvelle
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 3000;
 
-let server; // pour stocker l'instance du serveur
+let server;
 
 async function connectMariaDBWithRetry(retries = 5, delay = 5000) {
   for (let i = 0; i < retries; i++) {
@@ -41,7 +40,6 @@ async function startServer() {
   }
 }
 
-// Fonction pour fermer le serveur (utile pour les tests)
 function closeServer() {
   return new Promise((resolve, reject) => {
     if (!server) return resolve();
@@ -52,7 +50,6 @@ function closeServer() {
   });
 }
 
-// Lance le serveur uniquement si ce fichier est exécuté directement
 if (require.main === module) {
   startServer();
 }
