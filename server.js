@@ -1,54 +1,60 @@
-const app = require('./app');
-const { PrismaClient } = require('@prisma/client');
-const connectMongo = require('./config/mongo');
+// server.js
+
+const express = require('express');
+const app = express();
 const mysql = require('mysql2/promise');
+require('dotenv').config();
 
-const prisma = new PrismaClient();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
-// 🔥 MariaDB wait helper
-async function waitForMariaDB() {
-  const { MYSQL_HOST, MYSQL_USER, MYSQL_ROOT_PASSWORD, MYSQL_DATABASE } = process.env;
+let server; // pour stocker l'instance du serveur
 
-  for (let i = 0; i < 10; i++) {
+async function connectMariaDBWithRetry(retries = 5, delay = 5000) {
+  for (let i = 0; i < retries; i++) {
     try {
       console.log(`⏳ Vérification de MariaDB... Tentative ${i + 1}`);
       const connection = await mysql.createConnection({
-        host: MYSQL_HOST,
-        user: MYSQL_USER,
-        password: MYSQL_ROOT_PASSWORD,
-        database: MYSQL_DATABASE
+        host: process.env.MYSQL_HOST,
+        user: process.env.MYSQL_USER,
+        password: process.env.MYSQL_ROOT_PASSWORD,
+        database: process.env.MYSQL_DATABASE
       });
+      await connection.ping();
       await connection.end();
-      console.log('✅ MariaDB est prêt !');
+      console.log('✅ MariaDB est accessible');
       return;
-    } catch {
+    } catch (err) {
       console.log('❌ MariaDB non prêt, nouvelle tentative...');
-      await new Promise((res) => setTimeout(res, 5000));
+      await new Promise((res) => setTimeout(res, delay));
     }
   }
-
   throw new Error("🚨 MariaDB n'est pas accessible après plusieurs tentatives.");
 }
 
-// 🚀 Démarrer le serveur
 async function startServer() {
   try {
-    console.log('🔄 Attente de MariaDB...');
-    await waitForMariaDB();
-
-    console.log('🔄 Connexion à Prisma...');
-    await prisma.$connect();
-
-    console.log('🔄 Connexion à MongoDB...');
-    const mongoDB = await connectMongo();
-    app.locals.mongoDB = mongoDB;
-
-    app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`));
+    await connectMariaDBWithRetry();
+    server = app.listen(PORT, () => console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`));
   } catch (error) {
     console.error('❌ Erreur critique :', error);
     process.exit(1);
   }
 }
 
-startServer();
+// Fonction pour fermer le serveur (utile pour les tests)
+function closeServer() {
+  return new Promise((resolve, reject) => {
+    if (!server) return resolve();
+    server.close((err) => {
+      if (err) return reject(err);
+      resolve();
+    });
+  });
+}
+
+// Lance le serveur uniquement si ce fichier est exécuté directement
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, startServer, closeServer };
