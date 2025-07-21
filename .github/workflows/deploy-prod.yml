@@ -1,30 +1,91 @@
-name: Deploy to ECS (prod)
+name: Backend CI/CD Pipeline
+
 on:
   push:
     branches:
+      - main
+      - develop
       - prod
+  pull_request:
+    branches:
+      - main
+      - prod
+
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
   ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
   TASK_EXECUTION_ROLE_ARN: ${{ secrets.TASK_EXECUTION_ROLE_ARN }}
+
 jobs:
-  deploy:
+  # 🧪 JOB 1: Test, Lint, Sécurité
+  test-and-quality:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
-      - name: Configure AWS credentials
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+        continue-on-error: false
+
+      - name: 🎨 Check Prettier formatting
+        run: npm run format:check
+        continue-on-error: true
+
+      - name: 🧪 Run unit tests
+        run: npm run test:run
+        env:
+          CI: true
+
+      - name: 📊 Generate coverage report
+        run: npm run test:coverage
+        continue-on-error: true
+
+      - name: 🔒 Security audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+  # 🏗️ JOB 2: Build Docker & Push to ECR
+  build-and-push:
+    needs: test-and-quality
+    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔑 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Login to Amazon ECR
+
+      - name: 🔐 Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-      - name: Build, tag, and push Docker image
+
+      - name: 🐳 Build & Push Docker image
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -33,76 +94,55 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-      - name: Get task definition with environment variables
+
+  # 🚀 JOB 3: Deploy to ECS
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔍 Get current task definition
         run: |
-          echo "=== Getting task definition revision 5 (with environment variables) ==="
           aws ecs describe-task-definition \
-            --task-definition wonderbook-back-task:5 \
-            --query 'taskDefinition' \
-            > current-task-def.json
-          
-          echo "=== Task definition content ==="
-          cat current-task-def.json
-          
-          echo "=== Environment variables found ==="
-          cat current-task-def.json | jq '.containerDefinitions[0].environment // []'
-          
-      - name: Create new task definition with updated image
+            --task-definition $ECS_SERVICE \
+            --query 'taskDefinition' > current-task-def.json
+
+      - name: 🛠️ Create new task definition with updated image
         run: |
-          echo "=== Creating new task definition with updated image ==="
-          jq --arg IMAGE "${{ steps.build-image.outputs.image }}" \
-             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy) | 
-              .containerDefinitions[0].image = $IMAGE' \
+          IMAGE_URI=${{ needs.build-and-push.outputs.image }}
+          jq --arg IMAGE "$IMAGE_URI" \
+             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+              | .containerDefinitions[0].image = $IMAGE' \
              current-task-def.json > task-definition-new.json
-      - name: Debug new task definition
+
+      - name: 🚀 Deploy new task definition to ECS
         run: |
-          echo "=== New task definition content ==="
-          cat task-definition-new.json
-          echo ""
-          echo "=== Container names in new task definition ==="
-          cat task-definition-new.json | jq '.containerDefinitions[].name'
-          echo ""
-          echo "=== Environment variables in new task definition ==="
-          cat task-definition-new.json | jq '.containerDefinitions[0].environment // []'
-      - name: Deploy to ECS
-        run: |
-          echo "=== Registering new task definition ==="
           TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json file://task-definition-new.json \
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
-         
-          echo "New task definition registered: $TASK_DEF_ARN"
-         
-          echo "=== Updating ECS service with rolling deployment ==="
+
           aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service ${{ env.ECS_SERVICE }} \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
             --task-definition $TASK_DEF_ARN \
             --deployment-configuration "minimumHealthyPercent=50,maximumPercent=200" \
             --force-new-deployment
-         
-          echo "=== Waiting for service to become stable (max 15 minutes) ==="
+
+          echo "Waiting for service to become stable..."
           timeout 900 aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }} || {
-            echo "Timeout reached, checking service status..."
-            RUNNING_COUNT=$(aws ecs describe-services \
-              --cluster ${{ env.ECS_CLUSTER }} \
-              --services ${{ env.ECS_SERVICE }} \
-              --query 'services[0].runningCount')
-            DESIRED_COUNT=$(aws ecs describe-services \
-              --cluster ${{ env.ECS_CLUSTER }} \
-              --services ${{ env.ECS_SERVICE }} \
-              --query 'services[0].desiredCount')
-            
-            if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ]; then
-              echo "Service is running with desired count, deployment likely successful"
-              exit 0
-            else
-              echo "Service is not stable, deployment may have failed"
-              exit 1
-            fi
-          }
-         
-          echo "=== Deployment completed successfully ==="
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE
+
+      - name: ✅ Confirm Deployment
+        run: echo "✅ Backend successfully deployed!"
+
