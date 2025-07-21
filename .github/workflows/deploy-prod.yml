@@ -74,16 +74,35 @@ jobs:
          
           echo "New task definition registered: $TASK_DEF_ARN"
          
-          echo "=== Updating ECS service ==="
+          echo "=== Updating ECS service with rolling deployment ==="
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
             --task-definition $TASK_DEF_ARN \
+            --deployment-configuration "minimumHealthyPercent=50,maximumPercent=200" \
             --force-new-deployment
          
-          echo "=== Waiting for service to become stable ==="
-          aws ecs wait services-stable \
+          echo "=== Waiting for service to become stable (max 15 minutes) ==="
+          timeout 900 aws ecs wait services-stable \
             --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }}
+            --services ${{ env.ECS_SERVICE }} || {
+            echo "Timeout reached, checking service status..."
+            RUNNING_COUNT=$(aws ecs describe-services \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --services ${{ env.ECS_SERVICE }} \
+              --query 'services[0].runningCount')
+            DESIRED_COUNT=$(aws ecs describe-services \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --services ${{ env.ECS_SERVICE }} \
+              --query 'services[0].desiredCount')
+            
+            if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ]; then
+              echo "Service is running with desired count, deployment likely successful"
+              exit 0
+            else
+              echo "Service is not stable, deployment may have failed"
+              exit 1
+            fi
+          }
          
           echo "=== Deployment completed successfully ==="

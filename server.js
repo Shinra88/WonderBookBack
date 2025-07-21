@@ -57,8 +57,14 @@ const adminRoutes = require("./routes/adminRoutes");
 app.get("/", (req, res) => {
   res.status(200).send("OK - Serveur en ligne");
 });
-app.get("/health", (req, res) => {
-  res.status(200).send("OK");
+
+// Add health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    version: process.env.NODE_ENV 
+  });
 });
 
 app.use("/api/auth", authRoutes);
