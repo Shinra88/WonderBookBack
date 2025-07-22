@@ -46,7 +46,7 @@ jobs:
 
       - name: 🔍 Run ESLint
         run: npm run lint
-        continue-on-error: true  # Le warning n'est pas bloquant
+        continue-on-error: true # Le warning n'est pas bloquant
 
       - name: 🎨 Check Prettier formatting
         run: npm run format:check
@@ -63,7 +63,7 @@ jobs:
 
   # 🏗️ JOB 2: Build et déploiement (seulement sur prod)
   build-and-deploy:
-    needs: test-and-quality  # Attend que les tests passent
+    needs: test-and-quality # Attend que les tests passent
     if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -89,7 +89,7 @@ jobs:
         run: |
           echo "🏗️ Construction de l'image Docker..."
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          
+
           echo "📤 Push vers ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
@@ -119,11 +119,11 @@ jobs:
       - name: 🚀 Deploy to ECS avec monitoring
         run: |
           echo "=== Déploiement vers ECS ==="
-          
+
           # Sauvegarder revision actuelle pour rollback
           BACKUP_REVISION=$(cat current-task-def.json | jq -r '.revision')
           echo "📋 Revision de backup: $BACKUP_REVISION"
-          
+
           # Enregistrer nouvelle task definition
           TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json file://task-definition-new.json \
@@ -179,26 +179,26 @@ jobs:
       - name: 🏥 Health check final
         run: |
           echo "=== Vérification santé de l'application ==="
-          
+
           # Attendre un peu que le service soit prêt
           sleep 30
-          
+
           # Test du endpoint de santé (si accessible publiquement)
           if curl -f -s https://wonderbook.net/health > /dev/null 2>&1; then
             echo "✅ Health check endpoint répond correctement"
           else
             echo "⚠️ Health check endpoint non accessible (normal si derrière ALB)"
           fi
-          
+
           # Vérification ECS finale
           SERVICE_STATUS=$(aws ecs describe-services \
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.ECS_SERVICE }} \
             --query 'services[0].deployments[0].status' \
             --output text)
-          
+
           echo "📊 Statut final du service: $SERVICE_STATUS"
-          
+
       - name: 📋 Deployment Summary
         if: always()
         run: |
