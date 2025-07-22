@@ -1,13 +1,129 @@
-// server.js
-const app = require('./app');
+require('dotenv').config();
+
+const express = require('express');
+
+const cors = require('cors');
+
+const swaggerUi = require('swagger-ui-express');
+
+const swaggerDocument = require('./swagger.json');
+
 const { PrismaClient } = require('@prisma/client');
+
 const connectMongo = require('./config/mongo');
+
 const mysql = require('mysql2/promise');
 
+const app = express();
+
 const prisma = new PrismaClient();
+
 const PORT = process.env.PORT || 5000;
 
-// 🔥 MariaDB wait helper
+// ✅ Middleware
+
+app.use(express.json());
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      const allowedOrigins = process.env.FRONTEND_URL.split(',');
+
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS non autorisé pour cette origine'));
+      }
+    },
+
+    methods: 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
+
+    allowedHeaders: 'Content-Type, Authorization',
+
+    credentials: true
+  })
+);
+
+// ✅ Logger universal
+
+app.use((req, res, next) => {
+  console.log(`➡️ ${req.method} ${req.originalUrl}`);
+
+  if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
+    console.log('📦 Body reçu :', req.body);
+  }
+
+  next();
+});
+
+// ✅ Routes main
+
+const bookRoutes = require('./routes/bookRoutes');
+
+const commentRoutes = require('./routes/commentRoutes');
+
+const topicsRoutes = require('./routes/topicsRoutes');
+
+const postsRoutes = require('./routes/postsRoutes');
+
+const authRoutes = require('./routes/authRoutes');
+
+const uploadRoutes = require('./routes/uploadS3');
+
+const categoryRoutes = require('./routes/categoryRoutes');
+
+const publisherRoutes = require('./routes/publisherRoutes');
+
+const collectionRoutes = require('./routes/collectionRoutes');
+
+const postRoutesId = require('./routes/postsRoutes');
+
+const adminRoutes = require('./routes/adminRoutes');
+
+// ✅ Authentication + profile management (register, login, profile, change-password)
+
+app.get('/', (req, res) => {
+  res.status(200).send('OK - Serveur en ligne');
+});
+
+// Add health check endpoint
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+
+    timestamp: new Date().toISOString(),
+
+    version: process.env.NODE_ENV
+  });
+});
+
+app.use('/api/auth', authRoutes);
+
+app.use('/api/books', bookRoutes);
+
+app.use('/api/comments', commentRoutes);
+
+app.use('/api/topics', topicsRoutes);
+
+app.use('/api/posts', postsRoutes);
+
+app.use('/api/posts', postRoutesId);
+
+app.use('/api/upload', uploadRoutes);
+
+app.use('/api/categories', categoryRoutes);
+
+app.use('/api/publishers', publisherRoutes);
+
+app.use('/api/collection', collectionRoutes);
+
+app.use('/api/admin', adminRoutes);
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+// 🔥 Function to wait for MariaDB before starting Prisma
+
 async function waitForMariaDB() {
   const { MYSQL_HOST, MYSQL_USER, MYSQL_ROOT_PASSWORD, MYSQL_DATABASE } = process.env;
 
@@ -15,18 +131,36 @@ async function waitForMariaDB() {
     try {
       console.log(`⏳ Vérification de MariaDB... Tentative ${i + 1}`);
 
+      console.log('🔍 Paramètres de connexion MariaDB :');
+
+      console.log({
+        host: MYSQL_HOST,
+
+        user: MYSQL_USER,
+
+        password: MYSQL_ROOT_PASSWORD ? '✅ présent' : '❌ manquant',
+
+        database: MYSQL_DATABASE
+      });
+
       const connection = await mysql.createConnection({
         host: MYSQL_HOST,
+
         user: MYSQL_USER,
+
         password: MYSQL_ROOT_PASSWORD,
+
         database: MYSQL_DATABASE
       });
 
       await connection.end();
+
       console.log('✅ MariaDB est prêt !');
+
       return;
     } catch (error) {
-      console.log(`❌ MariaDB non prêt (${error.code}), nouvelle tentative...`);
+      console.log('❌ MariaDB non prêt, nouvelle tentative...');
+
       await new Promise((res) => setTimeout(res, 5000));
     }
   }
@@ -34,62 +168,36 @@ async function waitForMariaDB() {
   throw new Error("🚨 MariaDB n'est pas accessible après plusieurs tentatives.");
 }
 
-// 🚀 Démarrer le serveur
+// 🚀 Start server
+
 async function startServer() {
   try {
     console.log('🔄 Attente de MariaDB...');
-    await waitForMariaDB();
 
-    console.log('🔄 Connexion à Prisma...');
-    await prisma.$connect();
+    await waitForMariaDB(); // Wait for MariaDB to be available
+
+    console.log('🔄 Connexion à MariaDB avec Prisma...');
+
+    await prisma.$connect(); // Connect with Prisma for MariaDB data management
+
     console.log('✅ Connexion à MariaDB réussie !');
 
     console.log('🔄 Connexion à MongoDB...');
-    const mongoDB = await connectMongo();
+
+    const mongoDB = await connectMongo(); // Connect to MongoDB
+
     app.locals.mongoDB = mongoDB;
+
     console.log('✅ Connexion à MongoDB réussie !');
 
-    // Démarrer le serveur Express
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`);
-      console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-    });
+    // Start Express server
 
-    // Gestion propre de l'arrêt
-    process.on('SIGTERM', async () => {
-      console.log('📴 Signal SIGTERM reçu, arrêt propre...');
-      server.close(async () => {
-        await prisma.$disconnect();
-        console.log('✅ Serveur arrêté proprement');
-        process.exit(0);
-      });
-    });
-
-    process.on('SIGINT', async () => {
-      console.log('📴 Signal SIGINT reçu, arrêt propre...');
-      server.close(async () => {
-        await prisma.$disconnect();
-        console.log('✅ Serveur arrêté proprement');
-        process.exit(0);
-      });
-    });
+    app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`));
   } catch (error) {
-    console.error('❌ Erreur critique lors du démarrage :', error);
-    await prisma.$disconnect();
-    process.exit(1);
+    console.error('❌ Erreur critique :', error);
+
+    process.exit(1); // Stop server on critical error
   }
 }
 
-// Gestion des erreurs non capturées
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-  process.exit(1);
-});
-
-startServer();
+startServer(); // Start server function

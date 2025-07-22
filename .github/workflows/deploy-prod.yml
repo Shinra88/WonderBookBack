@@ -15,6 +15,7 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -47,10 +48,10 @@ jobs:
             --task-definition wonderbook-back-task:5 \
             --query 'taskDefinition' \
             > current-task-def.json
-          
+
           echo "=== Task definition content ==="
           cat current-task-def.json
-          
+
           echo "=== Environment variables found ==="
           cat current-task-def.json | jq '.containerDefinitions[0].environment // []'
 
@@ -58,9 +59,22 @@ jobs:
         run: |
           echo "=== Creating new task definition with updated image ==="
           jq --arg IMAGE "${{ steps.build-image.outputs.image }}" \
-             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy) | 
+             'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy) |
               .containerDefinitions[0].image = $IMAGE' \
              current-task-def.json > task-definition-new.json
+
+      - name: Debug new task definition
+        run: |
+          echo "=== New task definition content ==="
+          cat task-definition-new.json
+
+          echo ""
+          echo "=== Container names in new task definition ==="
+          cat task-definition-new.json | jq '.containerDefinitions[].name'
+
+          echo ""
+          echo "=== Environment variables in new task definition ==="
+          cat task-definition-new.json | jq '.containerDefinitions[0].environment // []'
 
       - name: Deploy to ECS
         run: |
@@ -84,23 +98,25 @@ jobs:
           timeout 900 aws ecs wait services-stable \
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.ECS_SERVICE }} || {
-            echo "Timeout reached, checking service status..."
-            RUNNING_COUNT=$(aws ecs describe-services \
-              --cluster ${{ env.ECS_CLUSTER }} \
-              --services ${{ env.ECS_SERVICE }} \
-              --query 'services[0].runningCount')
-            DESIRED_COUNT=$(aws ecs describe-services \
-              --cluster ${{ env.ECS_CLUSTER }} \
-              --services ${{ env.ECS_SERVICE }} \
-              --query 'services[0].desiredCount')
-            
-            if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ]; then
-              echo "Service is running with desired count, deployment likely successful"
-              exit 0
-            else
-              echo "Service is not stable, deployment may have failed"
-              exit 1
-            fi
-          }
+              echo "Timeout reached, checking service status..."
+
+              RUNNING_COUNT=$(aws ecs describe-services \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --services ${{ env.ECS_SERVICE }} \
+                --query 'services[0].runningCount')
+
+              DESIRED_COUNT=$(aws ecs describe-services \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --services ${{ env.ECS_SERVICE }} \
+                --query 'services[0].desiredCount')
+
+              if [ "$RUNNING_COUNT" -eq "$DESIRED_COUNT" ]; then
+                echo "Service is running with desired count, deployment likely successful"
+                exit 0
+              else
+                echo "Service is not stable, deployment may have failed"
+                exit 1
+              fi
+            }
 
           echo "=== Deployment completed successfully ==="
