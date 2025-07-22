@@ -19,15 +19,16 @@ module.exports = [
         clearTimeout: 'readonly',
         setInterval: 'readonly',
         clearInterval: 'readonly',
-
-        // Jest globals
+        // Jest globals - COMPLET
         describe: 'readonly',
         it: 'readonly',
+        test: 'readonly',
         expect: 'readonly',
         beforeAll: 'readonly',
         afterAll: 'readonly',
         beforeEach: 'readonly',
-        afterEach: 'readonly'
+        afterEach: 'readonly',
+        jest: 'readonly'
       }
     },
     plugins: {

@@ -158,7 +158,7 @@ async function waitForMariaDB() {
       console.log('✅ MariaDB est prêt !');
 
       return;
-    } catch (error) {
+    } catch {
       console.log('❌ MariaDB non prêt, nouvelle tentative...');
 
       await new Promise((res) => setTimeout(res, 5000));
