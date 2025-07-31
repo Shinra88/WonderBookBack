@@ -19,21 +19,53 @@ env:
   TASK_EXECUTION_ROLE_ARN: ${{ secrets.TASK_EXECUTION_ROLE_ARN }}
 
 jobs:
-  # 🧪 JOB 1: Tests et qualité de code
+  # 🧪 JOB 1: Tests and code quality
   test-and-quality:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+        with:
+          # Important: permet de push les changements
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: 📦 Install dependencies
         run: npm ci
+
+      - name: 🎨 Auto-format code with Prettier
+        id: prettier-format
+        run: |
+          echo "🔧 Application du formatage Prettier..."
+          npm run format
+
+          # Vérifier s'il y a des changements
+          if git diff --quiet; then
+            echo "✅ Aucun changement de formatage nécessaire"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "📝 Fichiers formatés automatiquement"
+            echo "changed=true" >> $GITHUB_OUTPUT
+            git diff --name-only
+          fi
+
+      - name: 💾 Commit formatting changes
+        if: steps.prettier-format.outputs.changed == 'true' && github.event_name == 'push'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "🎨 Auto-format code with Prettier [skip ci]"
+          git push
+          echo "✅ Changements de formatage committé"
+
+      - name: ✅ Verify formatting applied
+        run: echo "✅ Code formaté et committé automatiquement"
 
       - name: 🧪 Run unit tests
         run: npm run test:run
@@ -46,10 +78,7 @@ jobs:
 
       - name: 🔍 Run ESLint
         run: npm run lint
-        continue-on-error: true # Le warning n'est pas bloquant
-
-      - name: 🎨 Check Prettier formatting
-        run: npm run format:check
+        continue-on-error: true
 
       - name: 🔒 Security audit
         run: npm audit --audit-level=moderate
@@ -60,10 +89,13 @@ jobs:
           echo "🎉 Tests réussis: Tous les tests passent!"
           echo "📋 13 tests exécutés avec succès"
           echo "✅ Format Prettier validé"
+          if [ "${{ steps.prettier-format.outputs.changed }}" == "true" ]; then
+            echo "🎨 Code automatiquement formaté"
+          fi
 
-  # 🏗️ JOB 2: Build et déploiement (seulement sur prod)
+  # 🏗️ JOB 2: Build and deployment (only on prod)
   build-and-deploy:
-    needs: test-and-quality # Attend que les tests passent
+    needs: test-and-quality # Wait for tests to pass
     if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
