@@ -33,7 +33,7 @@ model books {
   bookId          Int               @id @default(autoincrement())
   author          String            @db.VarChar(50)
   title           String            @unique(map: "title_2") @db.VarChar(50)
-  date            DateTime          @default("2000-01-01T00:00:00.000Z") @db.Date
+  date            DateTime          @default(dbgenerated("('0000-00-00')")) @db.Date
   created_at      DateTime          @default(now()) @db.Timestamp(0)
   updated_at      DateTime?         @db.Timestamp(0)
   validated_by    Int?

@@ -1,3 +1,4 @@
+// tests/basic.test.js
 describe('Basic Environment Tests', () => {
   test('should have test environment configured', () => {
     expect(process.env.NODE_ENV).toBe('test');
