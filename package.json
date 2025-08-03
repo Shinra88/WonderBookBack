@@ -8,7 +8,7 @@
     "generate": "prisma generate",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage --watchAll=false",
+    "test:coverage": "jest --coverage --coverageReporters=json-summary --coverageReporters=lcov --watchAll=false",
     "test:ci": "jest --coverage --watchAll=false --ci",
     "test:verbose": "jest --verbose --coverage",
     "test:unit": "jest --testPathPattern=unit",
