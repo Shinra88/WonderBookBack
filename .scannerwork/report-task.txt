@@ -1,0 +1,6 @@
+projectKey=WonderBookBackTEST
+serverUrl=http://localhost:9000
+serverVersion=25.7.0.110598
+dashboardUrl=http://localhost:9000/dashboard?id=WonderBookBackTEST
+ceTaskId=0f15a407-7665-43d6-a23b-c8f31c6ff97e
+ceTaskUrl=http://localhost:9000/api/ce/task?id=0f15a407-7665-43d6-a23b-c8f31c6ff97e
