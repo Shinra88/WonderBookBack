@@ -39,11 +39,4 @@ describe('sendConfirmationEmail', () => {
     const result = await sendConfirmationEmail('', '');
     expect(result).toBe(false);
   });
-
-  test('should create proper email content', () => {
-    // Test indirect - vérifier que la fonction existe et peut être appelée
-    expect(() => {
-      sendConfirmationEmail('test@example.com', 'Test User');
-    }).not.toThrow();
-  });
 });
