@@ -1,29 +1,25 @@
 require('dotenv').config();
 
 const express = require('express');
-
 const cors = require('cors');
-
+const cookieParser = require('cookie-parser'); // ✅ AJOUT pour la sécurité
 const swaggerUi = require('swagger-ui-express');
-
 const swaggerDocument = require('./swagger.json');
-
 const { PrismaClient } = require('@prisma/client');
-
 const connectMongo = require('./config/mongo');
-
 const mysql = require('mysql2/promise');
 
 const app = express();
-
 const prisma = new PrismaClient();
-
 const PORT = process.env.PORT || 5000;
 
-// ✅ Middleware
-
+// ✅ Middleware - ORDRE IMPORTANT
 app.use(express.json());
 
+// ✅ NOUVEAU : Cookie parser pour la sécurité JWT
+app.use(cookieParser());
+
+// ✅ CORS modifié pour supporter les cookies HttpOnly
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -35,17 +31,14 @@ app.use(
         callback(new Error('CORS non autorisé pour cette origine'));
       }
     },
-
     methods: 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
-
-    allowedHeaders: 'Content-Type, Authorization',
-
-    credentials: true
+    // ✅ MODIFIÉ : Retiré 'Authorization' car on utilise des cookies maintenant
+    allowedHeaders: 'Content-Type',
+    credentials: true // ✅ CRUCIAL pour les cookies HttpOnly
   })
 );
 
 // ✅ Logger universal
-
 app.use((req, res, next) => {
   console.log(`➡️ ${req.method} ${req.originalUrl}`);
 
@@ -57,73 +50,47 @@ app.use((req, res, next) => {
 });
 
 // ✅ Routes main
-
 const bookRoutes = require('./routes/bookRoutes');
-
 const commentRoutes = require('./routes/commentRoutes');
-
 const topicsRoutes = require('./routes/topicsRoutes');
-
 const postsRoutes = require('./routes/postsRoutes');
-
 const authRoutes = require('./routes/authRoutes');
-
 const uploadRoutes = require('./routes/uploadS3');
-
 const categoryRoutes = require('./routes/categoryRoutes');
-
 const publisherRoutes = require('./routes/publisherRoutes');
-
 const collectionRoutes = require('./routes/collectionRoutes');
-
 const postRoutesId = require('./routes/postsRoutes');
-
 const adminRoutes = require('./routes/adminRoutes');
 
-// ✅ Authentication + profile management (register, login, profile, change-password)
-
+// ✅ Health check endpoints
 app.get('/', (req, res) => {
   res.status(200).send('OK - Serveur en ligne');
 });
 
-// Add health check endpoint
-
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
-
     timestamp: new Date().toISOString(),
-
     version: process.env.NODE_ENV
   });
 });
 
+// ✅ Routes setup
 app.use('/api/auth', authRoutes);
-
 app.use('/api/books', bookRoutes);
-
 app.use('/api/comments', commentRoutes);
-
 app.use('/api/topics', topicsRoutes);
-
 app.use('/api/posts', postsRoutes);
-
 app.use('/api/posts', postRoutesId);
-
 app.use('/api/upload', uploadRoutes);
-
 app.use('/api/categories', categoryRoutes);
-
 app.use('/api/publishers', publisherRoutes);
-
 app.use('/api/collection', collectionRoutes);
-
 app.use('/api/admin', adminRoutes);
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // 🔥 Function to wait for MariaDB before starting Prisma
-
 async function waitForMariaDB() {
   const { MYSQL_HOST, MYSQL_USER, MYSQL_ROOT_PASSWORD, MYSQL_DATABASE } = process.env;
 
@@ -132,35 +99,25 @@ async function waitForMariaDB() {
       console.log(`⏳ Vérification de MariaDB... Tentative ${i + 1}`);
 
       console.log('🔍 Paramètres de connexion MariaDB :');
-
       console.log({
         host: MYSQL_HOST,
-
         user: MYSQL_USER,
-
         password: MYSQL_ROOT_PASSWORD ? '✅ présent' : '❌ manquant',
-
         database: MYSQL_DATABASE
       });
 
       const connection = await mysql.createConnection({
         host: MYSQL_HOST,
-
         user: MYSQL_USER,
-
         password: MYSQL_ROOT_PASSWORD,
-
         database: MYSQL_DATABASE
       });
 
       await connection.end();
-
       console.log('✅ MariaDB est prêt !');
-
       return;
     } catch {
       console.log('❌ MariaDB non prêt, nouvelle tentative...');
-
       await new Promise((res) => setTimeout(res, 5000));
     }
   }
@@ -169,35 +126,29 @@ async function waitForMariaDB() {
 }
 
 // 🚀 Start server
-
 async function startServer() {
   try {
     console.log('🔄 Attente de MariaDB...');
-
     await waitForMariaDB(); // Wait for MariaDB to be available
 
     console.log('🔄 Connexion à MariaDB avec Prisma...');
-
     await prisma.$connect(); // Connect with Prisma for MariaDB data management
-
     console.log('✅ Connexion à MariaDB réussie !');
 
     console.log('🔄 Connexion à MongoDB...');
-
     const mongoDB = await connectMongo(); // Connect to MongoDB
-
     app.locals.mongoDB = mongoDB;
-
     console.log('✅ Connexion à MongoDB réussie !');
 
     // Start Express server
-
-    app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`));
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`);
+      console.log('🔒 Sécurité JWT avec cookies HttpOnly activée !');
+    });
   } catch (error) {
     console.error('❌ Erreur critique :', error);
-
     process.exit(1); // Stop server on critical error
   }
 }
 
-startServer(); // Start server function
+startServer();

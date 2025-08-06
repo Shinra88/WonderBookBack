@@ -1,4 +1,4 @@
-// tests/unit/controllers/authController.test.js
+// tests/unit/controllers/authController.test.js - VERSION COMPLÈTE SÉCURISÉE
 
 // Mock des dépendances
 const mockFindUnique = jest.fn();
@@ -54,7 +54,9 @@ describe('AuthController', () => {
 
     res = {
       status: jest.fn(() => res),
-      json: jest.fn(() => res)
+      json: jest.fn(() => res),
+      cookie: jest.fn(() => res), // ✅ AJOUT
+      clearCookie: jest.fn(() => res) // ✅ AJOUT
     };
 
     jest.clearAllMocks();
@@ -86,8 +88,17 @@ describe('AuthController', () => {
         'test-secret-key-for-testing-only',
         { expiresIn: '3h' }
       );
+
+      // ✅ CHANGEMENT : Vérifier que le cookie est défini
+      expect(res.cookie).toHaveBeenCalledWith('token', 'fake-token', {
+        httpOnly: true,
+        secure: false, // NODE_ENV n'est pas 'production' dans les tests
+        sameSite: 'strict',
+        maxAge: 3 * 60 * 60 * 1000
+      });
+
+      // ✅ CHANGEMENT : Plus de token dans la réponse JSON
       expect(res.json).toHaveBeenCalledWith({
-        token: 'fake-token',
         user: expect.objectContaining({
           userId: 1,
           name: 'Test User',
@@ -251,16 +262,28 @@ describe('AuthController', () => {
         role: 'user'
       };
       mockCreate.mockResolvedValue(mockNewUser);
+      bcrypt.hash.mockResolvedValue('hashedTest123!'); // ✅ AJOUT : Mock bcrypt.hash
 
       await authController.registerUser(req, res);
 
+      // ✅ CHANGEMENT : Vérifier que bcrypt.hash est appelé
+      expect(bcrypt.hash).toHaveBeenCalledWith('Test123!', 10);
       expect(mockCreate).toHaveBeenCalledWith({
-        data: { name: 'testuser', mail: 'new@test.com', password: 'Test123!', role: 'user' }
+        data: { name: 'testuser', mail: 'new@test.com', password: 'hashedTest123!', role: 'user' }
       });
       expect(sendConfirmationEmail).toHaveBeenCalledWith('new@test.com', 'testuser');
+
+      // ✅ CHANGEMENT : Vérifier que le cookie est défini
+      expect(res.cookie).toHaveBeenCalledWith('token', 'fake-token', {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000
+      });
+
       expect(res.status).toHaveBeenCalledWith(201);
+      // ✅ CHANGEMENT : Plus de token dans la réponse JSON
       expect(res.json).toHaveBeenCalledWith({
-        token: 'fake-token',
         user: mockNewUser
       });
     });
@@ -284,7 +307,11 @@ describe('AuthController', () => {
         where: { userId: 1 },
         data: { password: 'hashedNewPassword' }
       });
-      expect(res.json).toHaveBeenCalledWith({ message: 'Mot de passe mis à jour avec succès.' });
+      // ✅ CHANGEMENT : Attend success: true
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Mot de passe mis à jour avec succès.'
+      });
     });
 
     test('should return 400 when fields are missing', async () => {
@@ -294,7 +321,11 @@ describe('AuthController', () => {
       await authController.changePassword(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Champs requis manquants.' });
+      // ✅ CHANGEMENT : Attend success: false
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Champs requis manquants.'
+      });
     });
 
     test('should return 401 when old password is incorrect', async () => {
@@ -308,295 +339,392 @@ describe('AuthController', () => {
       await authController.changePassword(req, res);
 
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Ancien mot de passe incorrect.' });
+      // ✅ CHANGEMENT : Attend success: false
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Ancien mot de passe incorrect.'
+      });
     });
 
-    describe('updateProfile', () => {
-      test('should update profile successfully', async () => {
-        req.body = {
-          name: 'Updated Name',
-          mail: 'updated@test.com',
-          aboutMe: 'Updated bio',
-          repForum: true,
-          addCom: true,
-          addBook: false,
-          news: true,
-          avatar: 'new-avatar.jpg'
-        };
-        req.user = { userId: 1 };
+    test('should return 404 when user not found', async () => {
+      req.body = { oldPassword: 'oldpass', newPassword: 'newpass' };
+      req.user = { userId: 999 };
 
-        const mockUpdatedUser = {
-          userId: 1,
+      mockFindUnique.mockResolvedValue(null);
+
+      await authController.changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      // ✅ CHANGEMENT : Attend success: false
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Utilisateur introuvable.'
+      });
+    });
+
+    test('should handle database errors', async () => {
+      req.body = { oldPassword: 'oldpass', newPassword: 'newpass' };
+      req.user = { userId: 1 };
+
+      mockFindUnique.mockRejectedValue(new Error('Database error'));
+
+      await authController.changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      // ✅ CHANGEMENT : Attend success: false
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Erreur serveur.'
+      });
+    });
+  });
+
+  describe('updateProfile', () => {
+    test('should update profile successfully', async () => {
+      req.body = {
+        name: 'Updated Name',
+        mail: 'updated@test.com',
+        aboutMe: 'Updated bio',
+        repForum: true,
+        addCom: true,
+        addBook: false,
+        news: true,
+        avatar: 'new-avatar.jpg'
+      };
+      req.user = { userId: 1 };
+
+      const mockUpdatedUser = {
+        userId: 1,
+        name: 'Updated Name',
+        mail: 'updated@test.com',
+        avatar: 'new-avatar.jpg',
+        role: 'user',
+        aboutMe: 'Updated bio',
+        repForum: true,
+        addCom: true,
+        addBook: false,
+        news: true
+      };
+
+      mockUpdate.mockResolvedValue(mockUpdatedUser);
+
+      await authController.updateProfile(req, res);
+
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { userId: 1 },
+        data: {
           name: 'Updated Name',
           mail: 'updated@test.com',
-          avatar: 'new-avatar.jpg',
-          role: 'user',
           aboutMe: 'Updated bio',
+          avatar: 'new-avatar.jpg',
           repForum: true,
           addCom: true,
           addBook: false,
           news: true
-        };
-
-        mockUpdate.mockResolvedValue(mockUpdatedUser);
-
-        await authController.updateProfile(req, res);
-
-        expect(mockUpdate).toHaveBeenCalledWith({
-          where: { userId: 1 },
-          data: {
-            name: 'Updated Name',
-            mail: 'updated@test.com',
-            aboutMe: 'Updated bio',
-            avatar: 'new-avatar.jpg',
-            repForum: true,
-            addCom: true,
-            addBook: false,
-            news: true
-          }
-        });
-
-        expect(res.json).toHaveBeenCalledWith({
-          message: 'Profil mis à jour',
-          user: mockUpdatedUser
-        });
+        }
       });
 
-      test('should handle update profile errors', async () => {
-        req.body = { name: 'Test' };
-        req.user = { userId: 1 };
-
-        mockUpdate.mockRejectedValue(new Error('Database error'));
-
-        await authController.updateProfile(req, res);
-
-        expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({ error: 'Erreur lors de la mise à jour du profil' });
+      // ✅ CHANGEMENT : success au lieu de message
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        user: mockUpdatedUser
       });
     });
 
-    describe('sendPasswordResetEmail', () => {
-      let mockTransporter;
+    test('should handle update profile errors', async () => {
+      req.body = { name: 'Test' };
+      req.user = { userId: 1 };
 
-      beforeEach(() => {
-        mockTransporter = {
-          sendMail: jest.fn().mockResolvedValue({ messageId: 'test-id' })
-        };
-        nodemailer.createTransport.mockReturnValue(mockTransporter);
-        crypto.randomBytes.mockReturnValue({ toString: () => 'random-token-123' });
+      mockUpdate.mockRejectedValue(new Error('Database error'));
+
+      await authController.updateProfile(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      // ✅ CHANGEMENT : Attend success: false
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Erreur lors de la mise à jour du profil'
+      });
+    });
+  });
+
+  describe('sendPasswordResetEmail', () => {
+    let mockTransporter;
+
+    beforeEach(() => {
+      // ✅ AJOUT : Mock des variables d'environnement
+      process.env.GMAIL_USER = 'test@gmail.com';
+      process.env.FRONTEND_URL = 'http://localhost:3000';
+
+      mockTransporter = {
+        sendMail: jest.fn().mockResolvedValue({ messageId: 'test-id' })
+      };
+      nodemailer.createTransporter = jest.fn().mockReturnValue(mockTransporter);
+      crypto.randomBytes.mockReturnValue({ toString: () => 'random-token-123' });
+    });
+
+    test('should send password reset email successfully', async () => {
+      req.body = { email: 'user@test.com' };
+
+      const mockUser = { userId: 1, name: 'Test User' };
+      mockFindUnique.mockResolvedValue(mockUser);
+      mockDeleteMany.mockResolvedValue({ count: 0 });
+      mockCreate.mockResolvedValue({
+        userId: 1,
+        token: 'random-token-123',
+        expiresAt: expect.any(Date)
       });
 
-      test('should send password reset email successfully', async () => {
-        req.body = { email: 'user@test.com' };
+      await authController.sendPasswordResetEmail(req, res);
 
-        const mockUser = { userId: 1, name: 'Test User' };
-        mockFindUnique.mockResolvedValue(mockUser);
-        mockDeleteMany.mockResolvedValue({ count: 0 });
-        mockCreate.mockResolvedValue({
+      expect(mockFindUnique).toHaveBeenCalledWith({ where: { mail: 'user@test.com' } });
+      expect(mockDeleteMany).toHaveBeenCalledWith({
+        where: { expiresAt: { lt: expect.any(Date) } }
+      });
+      expect(mockCreate).toHaveBeenCalledWith({
+        data: {
           userId: 1,
           token: 'random-token-123',
           expiresAt: expect.any(Date)
-        });
-
-        await authController.sendPasswordResetEmail(req, res);
-
-        expect(mockFindUnique).toHaveBeenCalledWith({ where: { mail: 'user@test.com' } });
-        expect(mockDeleteMany).toHaveBeenCalledWith({
-          where: { expiresAt: { lt: expect.any(Date) } }
-        });
-        expect(mockCreate).toHaveBeenCalledWith({
-          data: {
-            userId: 1,
-            token: 'random-token-123',
-            expiresAt: expect.any(Date)
-          }
-        });
-        expect(mockTransporter.sendMail).toHaveBeenCalledWith({
-          from: '"WonderBook" <undefined>',
-          to: 'user@test.com',
-          subject: 'Réinitialisation de votre mot de passe',
-          html: expect.stringContaining('Test User')
-        });
-
-        expect(res.json).toHaveBeenCalledWith({ success: true });
+        }
       });
 
-      test('should return 404 when user not found', async () => {
-        req.body = { email: 'notfound@test.com' };
-
-        mockFindUnique.mockResolvedValue(null);
-
-        await authController.sendPasswordResetEmail(req, res);
-
-        expect(res.status).toHaveBeenCalledWith(404);
-        expect(res.json).toHaveBeenCalledWith({
-          success: false,
-          message: 'Aucun compte associé à cet e-mail.'
-        });
+      // ✅ CHANGEMENT : Utiliser la vraie valeur de GMAIL_USER
+      expect(mockTransporter.sendMail).toHaveBeenCalledWith({
+        from: '"WonderBook" <test@gmail.com>',
+        to: 'user@test.com',
+        subject: 'Réinitialisation de votre mot de passe',
+        html: expect.stringContaining('Test User')
       });
 
-      test('should handle email sending errors', async () => {
-        req.body = { email: 'user@test.com' };
+      expect(res.json).toHaveBeenCalledWith({ success: true });
+    });
 
-        mockFindUnique.mockResolvedValue({ userId: 1, name: 'Test User' });
-        mockDeleteMany.mockResolvedValue({ count: 0 });
-        mockCreate.mockResolvedValue({});
-        mockTransporter.sendMail.mockRejectedValue(new Error('Email error'));
+    test('should return 404 when user not found', async () => {
+      req.body = { email: 'notfound@test.com' };
 
-        await authController.sendPasswordResetEmail(req, res);
+      mockFindUnique.mockResolvedValue(null);
 
-        expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({
-          success: false,
-          message: 'Erreur serveur.'
-        });
+      await authController.sendPasswordResetEmail(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Aucun compte associé à cet e-mail.'
       });
     });
 
-    describe('resetPassword', () => {
-      test('should reset password successfully', async () => {
-        req.params = { token: 'valid-token' };
-        req.body = { newPassword: 'newPassword123!' };
+    test('should handle email sending errors', async () => {
+      req.body = { email: 'user@test.com' };
 
-        const mockResetToken = {
-          id: 1,
-          userId: 1,
-          token: 'valid-token',
-          expiresAt: new Date(Date.now() + 10000), // Future date
-          user: { userId: 1, name: 'Test User' }
-        };
+      mockFindUnique.mockResolvedValue({ userId: 1, name: 'Test User' });
+      mockDeleteMany.mockResolvedValue({ count: 0 });
+      mockCreate.mockResolvedValue({});
+      mockTransporter.sendMail.mockRejectedValue(new Error('Email error'));
 
-        mockFindUnique.mockResolvedValue(mockResetToken);
-        bcrypt.hash.mockResolvedValue('hashedNewPassword');
-        mockUpdate.mockResolvedValue({});
-        mockDelete.mockResolvedValue({});
+      await authController.sendPasswordResetEmail(req, res);
 
-        await authController.resetPassword(req, res);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Erreur serveur.'
+      });
+    });
+  });
 
-        expect(mockFindUnique).toHaveBeenCalledWith({
-          where: { token: 'valid-token' },
-          include: { user: true }
-        });
-        expect(bcrypt.hash).toHaveBeenCalledWith('newPassword123!', 10);
-        expect(mockUpdate).toHaveBeenCalledWith({
-          where: { userId: 1 },
-          data: { password: 'hashedNewPassword' }
-        });
-        expect(mockDelete).toHaveBeenCalledWith({
-          where: { id: 1 }
-        });
+  describe('resetPassword', () => {
+    test('should reset password successfully', async () => {
+      req.params = { token: 'valid-token' };
+      req.body = { newPassword: 'newPassword123!' };
 
-        expect(res.json).toHaveBeenCalledWith({
-          success: true,
-          message: 'Mot de passe réinitialisé avec succès.'
-        });
+      const mockResetToken = {
+        id: 1,
+        userId: 1,
+        token: 'valid-token',
+        expiresAt: new Date(Date.now() + 10000), // Future date
+        user: { userId: 1, name: 'Test User' }
+      };
+
+      mockFindUnique.mockResolvedValue(mockResetToken);
+      bcrypt.hash.mockResolvedValue('hashedNewPassword');
+      mockUpdate.mockResolvedValue({});
+      mockDelete.mockResolvedValue({});
+
+      await authController.resetPassword(req, res);
+
+      expect(mockFindUnique).toHaveBeenCalledWith({
+        where: { token: 'valid-token' },
+        include: { user: true }
+      });
+      expect(bcrypt.hash).toHaveBeenCalledWith('newPassword123!', 10);
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { userId: 1 },
+        data: { password: 'hashedNewPassword' }
+      });
+      expect(mockDelete).toHaveBeenCalledWith({
+        where: { id: 1 }
       });
 
-      test('should return 400 when token not found', async () => {
-        req.params = { token: 'invalid-token' };
-        req.body = { newPassword: 'newPassword123!' };
-
-        mockFindUnique.mockResolvedValue(null);
-
-        await authController.resetPassword(req, res);
-
-        expect(res.status).toHaveBeenCalledWith(400);
-        expect(res.json).toHaveBeenCalledWith({
-          success: false,
-          message: 'Lien expiré ou invalide.'
-        });
-      });
-
-      test('should return 400 when token is expired', async () => {
-        req.params = { token: 'expired-token' };
-        req.body = { newPassword: 'newPassword123!' };
-
-        const mockResetToken = {
-          id: 1,
-          userId: 1,
-          token: 'expired-token',
-          expiresAt: new Date(Date.now() - 10000), // Past date
-          user: { userId: 1, name: 'Test User' }
-        };
-
-        mockFindUnique.mockResolvedValue(mockResetToken);
-
-        await authController.resetPassword(req, res);
-
-        expect(res.status).toHaveBeenCalledWith(400);
-        expect(res.json).toHaveBeenCalledWith({
-          success: false,
-          message: 'Lien expiré ou invalide.'
-        });
-      });
-
-      test('should handle database errors during reset', async () => {
-        req.params = { token: 'valid-token' };
-        req.body = { newPassword: 'newPassword123!' };
-
-        mockFindUnique.mockRejectedValue(new Error('Database error'));
-
-        await authController.resetPassword(req, res);
-
-        expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({
-          success: false,
-          message: 'Erreur serveur.'
-        });
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Mot de passe réinitialisé avec succès.'
       });
     });
 
-    describe('changePassword - additional tests', () => {
-      test('should return 404 when user not found', async () => {
-        req.body = { oldPassword: 'oldpass', newPassword: 'newpass' };
-        req.user = { userId: 999 };
+    test('should return 400 when token not found', async () => {
+      req.params = { token: 'invalid-token' };
+      req.body = { newPassword: 'newPassword123!' };
 
-        mockFindUnique.mockResolvedValue(null);
+      mockFindUnique.mockResolvedValue(null);
 
-        await authController.changePassword(req, res);
+      await authController.resetPassword(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(404);
-        expect(res.json).toHaveBeenCalledWith({ message: 'Utilisateur introuvable.' });
-      });
-
-      test('should handle database errors', async () => {
-        req.body = { oldPassword: 'oldpass', newPassword: 'newpass' };
-        req.user = { userId: 1 };
-
-        mockFindUnique.mockRejectedValue(new Error('Database error'));
-
-        await authController.changePassword(req, res);
-
-        expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({ message: 'Erreur serveur.' });
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Lien expiré ou invalide.'
       });
     });
 
-    describe('registerUser - additional tests', () => {
-      beforeEach(() => {
-        axios.post.mockResolvedValue({ data: { success: true } });
-        sendConfirmationEmail.mockResolvedValue(true);
-        jwt.sign.mockReturnValue('fake-token');
+    test('should return 400 when token is expired', async () => {
+      req.params = { token: 'expired-token' };
+      req.body = { newPassword: 'newPassword123!' };
+
+      const mockResetToken = {
+        id: 1,
+        userId: 1,
+        token: 'expired-token',
+        expiresAt: new Date(Date.now() - 10000), // Past date
+        user: { userId: 1, name: 'Test User' }
+      };
+
+      mockFindUnique.mockResolvedValue(mockResetToken);
+
+      await authController.resetPassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Lien expiré ou invalide.'
+      });
+    });
+
+    test('should handle database errors during reset', async () => {
+      req.params = { token: 'valid-token' };
+      req.body = { newPassword: 'newPassword123!' };
+
+      mockFindUnique.mockRejectedValue(new Error('Database error'));
+
+      await authController.resetPassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Erreur serveur.'
+      });
+    });
+  });
+
+  describe('registerUser - additional tests', () => {
+    beforeEach(() => {
+      axios.post.mockResolvedValue({ data: { success: true } });
+      sendConfirmationEmail.mockResolvedValue(true);
+      jwt.sign.mockReturnValue('fake-token');
+    });
+
+    test('should handle captcha verification errors', async () => {
+      req.body = {
+        name: 'testuser',
+        mail: 'test@test.com',
+        password: 'Test123!',
+        recaptchaToken: 'valid-token',
+        website: ''
+      };
+
+      axios.post.mockRejectedValue(new Error('Network error'));
+
+      await authController.registerUser(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Erreur lors de la vérification du captcha.'
+      });
+    });
+  });
+
+  // ✅ NOUVEAUX TESTS : getMe et logoutUser
+  describe('getMe', () => {
+    test('should return user data successfully', async () => {
+      req.user = { userId: 1 };
+
+      const mockUser = {
+        userId: 1,
+        name: 'Test User',
+        mail: 'test@test.com',
+        role: 'user',
+        avatar: 'avatar.jpg',
+        aboutMe: 'About me',
+        repForum: true,
+        addCom: false,
+        addBook: true,
+        news: false
+      };
+
+      mockFindUnique.mockResolvedValue(mockUser);
+
+      await authController.getMe(req, res);
+
+      expect(mockFindUnique).toHaveBeenCalledWith({
+        where: { userId: 1 },
+        select: {
+          userId: true,
+          name: true,
+          mail: true,
+          role: true,
+          avatar: true,
+          aboutMe: true,
+          repForum: true,
+          addCom: true,
+          addBook: true,
+          news: true
+        }
       });
 
-      test('should handle captcha verification errors', async () => {
-        req.body = {
-          name: 'testuser',
-          mail: 'test@test.com',
-          password: 'Test123!',
-          recaptchaToken: 'valid-token',
-          website: ''
-        };
+      expect(res.json).toHaveBeenCalledWith(mockUser);
+    });
 
-        axios.post.mockRejectedValue(new Error('Network error'));
+    test('should return 404 when user not found', async () => {
+      req.user = { userId: 999 };
+      mockFindUnique.mockResolvedValue(null);
 
-        await authController.registerUser(req, res);
+      await authController.getMe(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({
-          error: 'Erreur lors de la vérification du captcha.'
-        });
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Utilisateur introuvable' });
+    });
+
+    test('should handle database errors', async () => {
+      req.user = { userId: 1 };
+      mockFindUnique.mockRejectedValue(new Error('Database error'));
+
+      await authController.getMe(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Erreur serveur' });
+    });
+  });
+
+  describe('logoutUser', () => {
+    test('should clear cookie and return success message', async () => {
+      await authController.logoutUser(req, res);
+
+      expect(res.clearCookie).toHaveBeenCalledWith('token', {
+        httpOnly: true,
+        secure: false, // NODE_ENV n'est pas 'production' dans les tests
+        sameSite: 'strict'
       });
+
+      expect(res.json).toHaveBeenCalledWith({ message: 'Déconnexion réussie' });
     });
   });
 });

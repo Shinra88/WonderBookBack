@@ -1,4 +1,4 @@
-// tests/unit/middleware/authenticate.test.js
+// tests/unit/middleware/authenticate.test.js - VERSION SÉCURISÉE
 const jwt = require('jsonwebtoken');
 
 // Mock JWT
@@ -17,28 +17,30 @@ jest.mock('@prisma/client', () => ({
 // Mock console
 jest.spyOn(console, 'error').mockImplementation(() => {});
 
-describe('authenticate middleware', () => {
+describe('authenticate middleware - VERSION SÉCURISÉE', () => {
   let req, res, next, authenticate;
 
   beforeEach(() => {
     // Importer après les mocks
     authenticate = require('../../../middleware/authenticate');
 
+    // ✅ CHANGEMENT : req.cookies au lieu de req.headers
     req = {
-      headers: {}
+      cookies: {}
     };
 
     res = {
       status: jest.fn(() => res),
       json: jest.fn(() => res)
     };
-
     next = jest.fn();
-
     jest.clearAllMocks();
   });
 
-  test('should return 401 when no token provided', async () => {
+  test('should return 401 when no token in cookies', async () => {
+    // ✅ CHANGEMENT : Pas de token dans les cookies
+    req.cookies = {};
+
     await authenticate(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
@@ -46,8 +48,9 @@ describe('authenticate middleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  test('should return 401 when authorization header is malformed', async () => {
-    req.headers.authorization = 'InvalidFormat';
+  test('should return 401 when token cookie is empty', async () => {
+    // ✅ CHANGEMENT : Token vide dans les cookies
+    req.cookies.token = '';
 
     await authenticate(req, res, next);
 
@@ -57,7 +60,9 @@ describe('authenticate middleware', () => {
   });
 
   test('should return 403 when token is invalid', async () => {
-    req.headers.authorization = 'Bearer invalid-token';
+    // ✅ CHANGEMENT : Token dans les cookies
+    req.cookies.token = 'invalid-token';
+
     jwt.verify.mockImplementation(() => {
       throw new Error('Invalid token');
     });
@@ -70,7 +75,9 @@ describe('authenticate middleware', () => {
   });
 
   test('should return 401 when user not found', async () => {
-    req.headers.authorization = 'Bearer valid-token';
+    // ✅ CHANGEMENT : Token dans les cookies
+    req.cookies.token = 'valid-token';
+
     jwt.verify.mockReturnValue({ userId: 1 });
     mockFindUnique.mockResolvedValue(null);
 
@@ -82,16 +89,16 @@ describe('authenticate middleware', () => {
   });
 
   test('should authenticate successfully and call next', async () => {
-    req.headers.authorization = 'Bearer valid-token';
-    jwt.verify.mockReturnValue({ userId: 1 });
+    // ✅ CHANGEMENT : Token dans les cookies
+    req.cookies.token = 'valid-token';
 
+    jwt.verify.mockReturnValue({ userId: 1 });
     const mockUser = {
       userId: 1,
       name: 'Test User',
       avatar: 'avatar.jpg',
       role: 'user'
     };
-
     mockFindUnique.mockResolvedValue(mockUser);
 
     await authenticate(req, res, next);
@@ -112,9 +119,41 @@ describe('authenticate middleware', () => {
   });
 
   test('should handle database errors', async () => {
-    req.headers.authorization = 'Bearer valid-token';
+    // ✅ CHANGEMENT : Token dans les cookies
+    req.cookies.token = 'valid-token';
+
     jwt.verify.mockReturnValue({ userId: 1 });
     mockFindUnique.mockRejectedValue(new Error('Database error'));
+
+    await authenticate(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Token invalide ou expiré' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('should handle expired tokens', async () => {
+    // ✅ NOUVEAU : Test pour tokens expirés
+    req.cookies.token = 'expired-token';
+
+    jwt.verify.mockImplementation(() => {
+      throw new Error('TokenExpiredError: jwt expired');
+    });
+
+    await authenticate(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Token invalide ou expiré' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('should handle malformed JWT tokens', async () => {
+    // ✅ NOUVEAU : Test pour JWT malformés
+    req.cookies.token = 'malformed.jwt.token';
+
+    jwt.verify.mockImplementation(() => {
+      throw new Error('JsonWebTokenError: jwt malformed');
+    });
 
     await authenticate(req, res, next);
 

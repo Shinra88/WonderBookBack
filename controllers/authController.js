@@ -1,4 +1,4 @@
-// ✅ authController.js
+// ✅ authController.js - VERSION 100% SÉCURISÉE
 
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -11,7 +11,7 @@ const sendConfirmationEmail = require('../utils/sendEmail');
 const prisma = new PrismaClient();
 const SECRET = process.env.JWT_SECRET || 'dev_secret';
 
-// ✅ Login user
+// ✅ Login user - VERSION SÉCURISÉE
 exports.loginUser = async (req, res) => {
   try {
     const { mail, password } = req.body;
@@ -24,8 +24,16 @@ exports.loginUser = async (req, res) => {
 
     const token = jwt.sign({ userId: user.userId, role: user.role }, SECRET, { expiresIn: '3h' });
 
+    // ✅ CHANGEMENT CRUCIAL : Cookie HttpOnly au lieu de JSON
+    res.cookie('token', token, {
+      httpOnly: true, // Inaccessible par JavaScript
+      secure: process.env.NODE_ENV === 'production', // HTTPS only en prod
+      sameSite: 'strict', // Protection CSRF
+      maxAge: 3 * 60 * 60 * 1000 // 3h en millisecondes
+    });
+
+    // ✅ PLUS DE TOKEN dans la réponse JSON
     res.json({
-      token,
       user: {
         userId: user.userId,
         name: user.name,
@@ -45,7 +53,7 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-// ✅ Register user
+// ✅ Register user - VERSION SÉCURISÉE
 exports.registerUser = async (req, res) => {
   const { name, mail, password, recaptchaToken, website } = req.body;
 
@@ -76,8 +84,9 @@ exports.registerUser = async (req, res) => {
   const existing = await prisma.user.findUnique({ where: { mail } });
   if (existing) return res.status(400).json({ error: 'Email déjà utilisé.' });
 
+  const hashedPassword = await bcrypt.hash(password, 10);
   const newUser = await prisma.user.create({
-    data: { name, mail, password, role: 'user' }
+    data: { name, mail, password: hashedPassword, role: 'user' }
   });
 
   await sendConfirmationEmail(mail, name);
@@ -86,8 +95,16 @@ exports.registerUser = async (req, res) => {
     expiresIn: '24h'
   });
 
+  // ✅ CHANGEMENT CRUCIAL : Cookie HttpOnly au lieu de JSON
+  res.cookie('token', token, {
+    httpOnly: true, // Inaccessible par JavaScript
+    secure: process.env.NODE_ENV === 'production', // HTTPS only en prod
+    sameSite: 'strict', // Protection CSRF
+    maxAge: 24 * 60 * 60 * 1000 // 24h en millisecondes
+  });
+
+  // ✅ PLUS DE TOKEN dans la réponse JSON
   res.status(201).json({
-    token,
     user: {
       userId: newUser.userId,
       name: newUser.name,
@@ -107,7 +124,7 @@ exports.updateProfile = async (req, res) => {
     });
 
     return res.json({
-      message: 'Profil mis à jour',
+      success: true, // ✅ AJOUT pour compatibilité avec le frontend
       user: {
         userId: updatedUser.userId,
         name: updatedUser.name,
@@ -121,8 +138,11 @@ exports.updateProfile = async (req, res) => {
         news: updatedUser.news
       }
     });
-  } catch {
-    return res.status(500).json({ error: 'Erreur lors de la mise à jour du profil' });
+  } catch (error) {
+    console.error('Erreur updateProfile:', error);
+    return res
+      .status(500)
+      .json({ success: false, error: 'Erreur lors de la mise à jour du profil' });
   }
 };
 
@@ -132,22 +152,24 @@ exports.changePassword = async (req, res) => {
   const userId = req.user.userId;
 
   if (!oldPassword || !newPassword) {
-    return res.status(400).json({ message: 'Champs requis manquants.' });
+    return res.status(400).json({ success: false, message: 'Champs requis manquants.' });
   }
 
   try {
     const user = await prisma.user.findUnique({ where: { userId } });
-    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable.' });
+    if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
 
     const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch) return res.status(401).json({ message: 'Ancien mot de passe incorrect.' });
+    if (!isMatch)
+      return res.status(401).json({ success: false, message: 'Ancien mot de passe incorrect.' });
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({ where: { userId }, data: { password: hashedPassword } });
 
-    res.json({ message: 'Mot de passe mis à jour avec succès.' });
-  } catch {
-    res.status(500).json({ message: 'Erreur serveur.' });
+    res.json({ success: true, message: 'Mot de passe mis à jour avec succès.' });
+  } catch (error) {
+    console.error('Erreur changePassword:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur.' });
   }
 };
 
@@ -183,7 +205,7 @@ exports.sendPasswordResetEmail = async (req, res) => {
     const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const resetLink = `${frontendBaseUrl}/forget-password/${token}`;
 
-    const transporter = nodemailer.createTransport({
+    const transporter = nodemailer.createTransporter({
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
@@ -241,4 +263,44 @@ exports.resetPassword = async (req, res) => {
     console.error('❌ Erreur resetPassword:', err);
     res.status(500).json({ success: false, message: 'Erreur serveur.' });
   }
+};
+
+// ✅ Get authenticated user info
+exports.getMe = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { userId: req.user.userId },
+      select: {
+        userId: true,
+        name: true,
+        mail: true,
+        role: true,
+        avatar: true,
+        aboutMe: true,
+        repForum: true,
+        addCom: true,
+        addBook: true,
+        news: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur introuvable' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Erreur getMe:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+};
+
+// ✅ Logout user - clear cookie
+exports.logoutUser = (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+  res.json({ message: 'Déconnexion réussie' });
 };

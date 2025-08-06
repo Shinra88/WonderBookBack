@@ -1,11 +1,14 @@
-// Middleware d'authentification pour vérifier le token JWT
+// Middleware d'authentification sécurisé avec cookies HttpOnly
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
+
 const prisma = new PrismaClient();
 const SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function authenticate(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
+  // ✅ CHANGEMENT PRINCIPAL : Lire depuis les cookies au lieu des headers
+  const token = req.cookies.token;
+
   if (!token) {
     return res.status(401).json({ error: 'Token manquant' });
   }
