@@ -2,6 +2,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { uploadImageToS3 } = require('./uploadController');
+const { createLog, LOG_ACTIONS } = require('./logsController');
 const DEFAULT_COVER = 'https://wonderbook-images.s3.eu-north-1.amazonaws.com/covers/default.webp';
 const { normalize } = require('../utils/normalizeString');
 const { formatBooks } = require('../utils/formatBooks');
@@ -78,6 +79,7 @@ const getAllBooks = async (req, res) => {
     res.status(500).json({ error: 'Erreur lors de la récupération des livres.' });
   }
 };
+
 // ✅ Retrieve best-rated books (without search)
 const getBestRatedBooks = async (req, res) => {
   const where = buildWhereFilters(req);
@@ -163,6 +165,21 @@ const addBook = async (req, res) => {
       }
     });
 
+    // 📊 Log de l'ajout de livre
+    try {
+      // Vérifier si req.user existe (utilisateur connecté)
+      if (req.user && req.user.userId) {
+        await createLog(
+          req.user.userId,
+          `${LOG_ACTIONS.BOOK_ADDED} : "${title}" par ${author}`,
+          newBook.bookId,
+          'book'
+        );
+      }
+    } catch (logError) {
+      console.error('⚠️ Erreur lors de la création du log:', logError);
+    }
+
     res.status(201).json(newBook);
   } catch (error) {
     console.error('❌ Erreur dans addBook :', error);
@@ -236,7 +253,11 @@ const getMinYear = async (req, res) => {
 const updateBookCover = async (req, res) => {
   try {
     const { id } = req.params;
-    const book = await prisma.books.findUnique({ where: { bookId: Number(id) } });
+    const book = await prisma.books.findUnique({
+      where: { bookId: Number(id) },
+      select: { title: true, author: true }
+    });
+
     if (!book) return res.status(404).json({ error: 'Livre non trouvé' });
 
     const safeTitle = book.title.replace(/[^a-z0-9_-]/gi, '').toLowerCase();
@@ -247,6 +268,20 @@ const updateBookCover = async (req, res) => {
       where: { bookId: Number(id) },
       data: { cover_url: coverUrl }
     });
+
+    // 📊 Log de la mise à jour de couverture
+    try {
+      if (req.user && req.user.userId) {
+        await createLog(
+          req.user.userId,
+          `Couverture mise à jour pour : "${book.title}" par ${book.author}`,
+          Number(id),
+          'book'
+        );
+      }
+    } catch (logError) {
+      console.error('⚠️ Erreur lors de la création du log:', logError);
+    }
 
     res.status(200).json({ message: 'Image mise à jour', cover_url: coverUrl });
   } catch (error) {
@@ -270,6 +305,21 @@ const updateBook = async (req, res) => {
   } = req.body;
 
   try {
+    // Récupérer l'état actuel du livre pour comparaison
+    const beforeUpdate = await prisma.books.findUnique({
+      where: { bookId: Number(id) },
+      select: {
+        title: true,
+        author: true,
+        status: true,
+        validated_by: true
+      }
+    });
+
+    if (!beforeUpdate) {
+      return res.status(404).json({ error: 'Livre non trouvé' });
+    }
+
     const parsedDate = new Date(year);
     if (isNaN(parsedDate)) {
       return res.status(400).json({ error: 'Date invalide' });
@@ -300,6 +350,40 @@ const updateBook = async (req, res) => {
         }
       }
     });
+
+    // 📊 Log des modifications importantes
+    try {
+      if (req.user && req.user.userId) {
+        // Log du changement de statut (validation/refus)
+        if (beforeUpdate.status !== status && status !== 'pending') {
+          let logAction;
+          switch (status) {
+            case 'validated':
+              logAction = `${LOG_ACTIONS.BOOK_VALIDATED} : "${title}" par ${author}`;
+              break;
+            case 'denied':
+              logAction = `${LOG_ACTIONS.BOOK_DENIED} : "${title}" par ${author}`;
+              break;
+            default:
+              logAction = `Statut du livre changé en ${status} : "${title}" par ${author}`;
+          }
+
+          await createLog(req.user.userId, logAction, Number(id), 'book');
+        }
+
+        // Log de la modification générale (si ce n'est pas juste un changement de statut)
+        if (beforeUpdate.title !== title || beforeUpdate.author !== author) {
+          await createLog(
+            req.user.userId,
+            `${LOG_ACTIONS.BOOK_UPDATED} : "${beforeUpdate.title}" → "${title}"`,
+            Number(id),
+            'book'
+          );
+        }
+      }
+    } catch (logError) {
+      console.error('⚠️ Erreur lors de la création du log:', logError);
+    }
 
     const updatedBook = await prisma.books.findUnique({
       where: { bookId: Number(id) },

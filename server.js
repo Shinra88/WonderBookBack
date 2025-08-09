@@ -61,6 +61,7 @@ const publisherRoutes = require('./routes/publisherRoutes');
 const collectionRoutes = require('./routes/collectionRoutes');
 const postRoutesId = require('./routes/postsRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const logsRoutes = require('./routes/logsRoutes'); // ✅ NOUVEAU : Routes des logs
 
 // ✅ Health check endpoints
 app.get('/', (req, res) => {
@@ -87,6 +88,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/publishers', publisherRoutes);
 app.use('/api/collection', collectionRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/logs', logsRoutes); // ✅ NOUVEAU : Routes des logs
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
@@ -144,6 +146,7 @@ async function startServer() {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`);
       console.log('🔒 Sécurité JWT avec cookies HttpOnly activée !');
+      console.log('📊 Routes des logs disponibles sur /api/logs'); // ✅ NOUVEAU : Info logs
     });
   } catch (error) {
     console.error('❌ Erreur critique :', error);
