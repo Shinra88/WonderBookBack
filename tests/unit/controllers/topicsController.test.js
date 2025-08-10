@@ -371,7 +371,9 @@ describe('TopicsController', () => {
       await topicsController.deleteTopic(req, res);
 
       expect(mockCollection.findOne).toHaveBeenCalledWith({ _id: mockObjectIdInstance });
-      expect(mockPostsCollection.deleteMany).toHaveBeenCalledWith({ topicId: mockObjectIdInstance });
+      expect(mockPostsCollection.deleteMany).toHaveBeenCalledWith({
+        topicId: mockObjectIdInstance
+      });
       expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: mockObjectIdInstance });
 
       expect(mockCreateLog).toHaveBeenCalledWith(
