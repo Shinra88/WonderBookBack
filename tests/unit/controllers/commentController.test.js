@@ -24,6 +24,7 @@ jest.mock('@prisma/client', () => ({
       aggregate: mockAggregate
     },
     books: {
+      findUnique: mockFindUnique, // Ajout pour les requêtes books.findUnique
       update: mockUpdate
     },
     collection: {
@@ -32,11 +33,22 @@ jest.mock('@prisma/client', () => ({
   }))
 }));
 
+// Mock du module logsController
+jest.mock('../../../controllers/logsController', () => ({
+  createLog: jest.fn(),
+  LOG_ACTIONS: {
+    COMMENT_ADDED: 'Commentaire ajouté',
+    COMMENT_UPDATED: 'Commentaire mis à jour',
+    COMMENT_DELETED: 'Commentaire supprimé'
+  }
+}));
+
 // Mock console
 jest.spyOn(console, 'error').mockImplementation(() => {});
 
 // Importer après les mocks
 const commentController = require('../../../controllers/commentController');
+const { createLog } = require('../../../controllers/logsController');
 
 describe('CommentController', () => {
   let req, res;
@@ -45,7 +57,7 @@ describe('CommentController', () => {
     req = {
       params: {},
       body: {},
-      user: { userId: 1 }
+      user: { userId: 1 } // userId en number
     };
 
     res = {
@@ -58,7 +70,7 @@ describe('CommentController', () => {
 
   describe('getCommentsByBook', () => {
     test('should get comments by book successfully', async () => {
-      req.params = { bookId: '1' };
+      req.params = { bookId: '1' }; // string comme dans les paramètres URL
 
       const mockComments = [
         {
@@ -82,7 +94,7 @@ describe('CommentController', () => {
       await commentController.getCommentsByBook(req, res);
 
       expect(mockFindMany).toHaveBeenCalledWith({
-        where: { bookId: 1 },
+        where: { bookId: 1 }, // parseInt(bookId, 10) = 1
         include: {
           user: { select: { name: true, avatar: true } }
         },
@@ -109,14 +121,28 @@ describe('CommentController', () => {
     beforeEach(() => {
       // Mock pour updateAverageRating
       mockAggregate.mockResolvedValue({ _avg: { rating: 4.5 } });
+
+      // Mock pour books.findUnique (récupération des infos du livre pour logs)
+      mockFindUnique.mockResolvedValue({
+        bookId: 1,
+        title: 'Test Book',
+        author: 'Test Author'
+      });
+
+      // Mock pour books.update (mise à jour de la note moyenne)
       mockUpdate.mockResolvedValue({ bookId: 1, averageRating: 4.5 });
+
+      // Mock pour createLog
+      createLog.mockResolvedValue();
     });
 
     test('should add new comment successfully', async () => {
       req.params = { bookId: '1' };
       req.body = { content: 'Great book!', rating: 5 };
 
-      mockFindFirst.mockResolvedValue(null); // Pas de commentaire existant
+      // Pas de commentaire existant
+      mockFindFirst.mockResolvedValue(null);
+
       const mockNewComment = {
         commentId: 1,
         bookId: 1,
@@ -128,9 +154,18 @@ describe('CommentController', () => {
 
       await commentController.addOrUpdateComment(req, res);
 
+      // Vérifier l'appel books.findUnique pour les logs
+      expect(mockFindUnique).toHaveBeenCalledWith({
+        where: { bookId: 1 },
+        select: { title: true, author: true }
+      });
+
+      // Vérifier l'appel comments.findFirst
       expect(mockFindFirst).toHaveBeenCalledWith({
         where: { bookId: 1, userId: 1 }
       });
+
+      // Vérifier l'appel comments.create
       expect(mockCreate).toHaveBeenCalledWith({
         data: { bookId: 1, userId: 1, content: 'Great book!', rating: 5 }
       });
@@ -157,7 +192,11 @@ describe('CommentController', () => {
         content: 'Updated comment',
         rating: 4
       };
-      mockUpdate.mockResolvedValueOnce(updatedComment); // Pour le commentaire
+
+      // Séparer les mocks pour comments.update et books.update
+      mockUpdate
+        .mockResolvedValueOnce(updatedComment) // Premier appel pour comments.update
+        .mockResolvedValueOnce({ bookId: 1, averageRating: 4.0 }); // Deuxième appel pour books.update
 
       await commentController.addOrUpdateComment(req, res);
 
@@ -198,7 +237,7 @@ describe('CommentController', () => {
       req.params = { bookId: '1' };
       req.body = { content: 'Test', rating: 5 };
 
-      mockFindFirst.mockRejectedValue(new Error('Database error'));
+      mockFindUnique.mockRejectedValue(new Error('Database error'));
 
       await commentController.addOrUpdateComment(req, res);
 
@@ -212,11 +251,23 @@ describe('CommentController', () => {
       // Mock pour updateAverageRating
       mockAggregate.mockResolvedValue({ _avg: { rating: 4.0 } });
       mockUpdate.mockResolvedValue({ bookId: 1, averageRating: 4.0 });
+
+      // Mock pour createLog
+      createLog.mockResolvedValue();
     });
 
     test('should delete comment successfully', async () => {
       req.params = { bookId: '1' };
 
+      // Mock pour récupérer les infos avant suppression
+      const existingComment = {
+        commentId: 1,
+        bookId: 1,
+        userId: 1,
+        books: { title: 'Test Book', author: 'Test Author' }
+      };
+
+      mockFindFirst.mockResolvedValue(existingComment);
       mockDeleteMany.mockResolvedValue({ count: 1 });
       mockFindMany.mockResolvedValue([]); // Pas de commentaires restants
       mockUpdateMany.mockResolvedValue({ count: 1 });
@@ -246,6 +297,8 @@ describe('CommentController', () => {
     test('should return 404 when comment not found', async () => {
       req.params = { bookId: '1' };
 
+      // Mock pour récupérer les infos avant suppression
+      mockFindFirst.mockResolvedValue(null); // Pas de commentaire trouvé
       mockDeleteMany.mockResolvedValue({ count: 0 });
 
       await commentController.deleteComment(req, res);
@@ -257,6 +310,14 @@ describe('CommentController', () => {
     test('should not update collection when user has remaining comments', async () => {
       req.params = { bookId: '1' };
 
+      const existingComment = {
+        commentId: 1,
+        bookId: 1,
+        userId: 1,
+        books: { title: 'Test Book', author: 'Test Author' }
+      };
+
+      mockFindFirst.mockResolvedValue(existingComment);
       mockDeleteMany.mockResolvedValue({ count: 1 });
       mockFindMany.mockResolvedValue([{ commentId: 2 }]); // Commentaires restants
 
@@ -272,12 +333,22 @@ describe('CommentController', () => {
       // Mock pour updateAverageRating
       mockAggregate.mockResolvedValue({ _avg: { rating: 3.5 } });
       mockUpdate.mockResolvedValue({ bookId: 1, averageRating: 3.5 });
+
+      // Mock pour createLog
+      createLog.mockResolvedValue();
     });
 
     test('should delete comment by ID successfully', async () => {
       req.params = { commentId: '1' };
 
-      const existingComment = { commentId: 1, bookId: 1, userId: 2 };
+      const existingComment = {
+        commentId: 1,
+        bookId: 1,
+        userId: 2,
+        books: { title: 'Test Book', author: 'Test Author' },
+        user: { name: 'Test User' }
+      };
+
       mockFindUnique.mockResolvedValue(existingComment);
       mockDelete.mockResolvedValue(existingComment);
       mockFindMany.mockResolvedValue([]); // Pas de commentaires restants
@@ -286,7 +357,20 @@ describe('CommentController', () => {
       await commentController.deleteCommentById(req, res);
 
       expect(mockFindUnique).toHaveBeenCalledWith({
-        where: { commentId: 1 }
+        where: { commentId: 1 },
+        include: {
+          books: {
+            select: {
+              author: true,
+              title: true
+            }
+          },
+          user: {
+            select: {
+              name: true
+            }
+          }
+        }
       });
 
       expect(mockDelete).toHaveBeenCalledWith({
