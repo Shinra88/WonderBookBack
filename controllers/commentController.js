@@ -190,7 +190,6 @@ const deleteCommentById = async (req, res) => {
 
     await updateAverageRating(existingComment.bookId);
 
-    // 📊 Log de la suppression par modérateur/admin
     try {
       if (req.user && req.user.userId) {
         await createLog(
