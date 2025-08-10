@@ -1,7 +1,13 @@
 // ========================================
-// controllers/postsController.js
+// controllers/postsController.js - Modification minimale
 const { ObjectId } = require('mongodb');
 const { createLog, LOG_ACTIONS } = require('./logsController');
+
+// ✅ SOLUTION SIMPLE : Même fonction utilitaire
+const objectIdToInt = (objectId) => {
+  const hex = objectId.toString().slice(-8);
+  return parseInt(hex, 16) % 2147483647;
+};
 
 // 📌 Retrieve all posts
 async function getPosts(req, res) {
@@ -42,10 +48,13 @@ async function addPost(req, res) {
 
     // 📊 Log de l'ajout du post
     try {
+      // ✅ FIX : Convertir ObjectId en entier pour Prisma
+      const targetId = objectIdToInt(result.insertedId);
+
       await createLog(
         userId,
         `${LOG_ACTIONS.POST_ADDED} dans le sujet "${topic?.title || 'Sujet inconnu'}"`,
-        result.insertedId.toString(),
+        targetId, // ✅ Maintenant c'est un Int
         'forum_post'
       );
     } catch (logError) {
@@ -89,14 +98,14 @@ async function deletePost(req, res) {
   try {
     const db = req.app.locals.mongoDB;
 
-    // Récupérer les infos du post avant suppression pour les logs
+    // Récupérer les infos du post avant suppression
     const existingPost = await db.collection('posts').findOne({ _id: new ObjectId(id) });
 
     if (!existingPost) {
       return res.status(404).json({ error: 'Post introuvable' });
     }
 
-    // Vérifier les permissions (seul l'auteur ou admin/modérateur peut supprimer)
+    // Vérifier les permissions
     if (existingPost.userId !== userId && !['admin', 'moderator'].includes(role)) {
       return res.status(403).json({ error: 'Permission refusée' });
     }
@@ -113,12 +122,20 @@ async function deletePost(req, res) {
 
     // 📊 Log de la suppression
     try {
+      // ✅ FIX : Convertir ObjectId en entier pour Prisma
+      const targetId = objectIdToInt(new ObjectId(id));
+
       const isModeration = existingPost.userId !== userId;
       const actionText = isModeration
         ? `${LOG_ACTIONS.POST_DELETED} (modération): post de ${existingPost.userName} dans "${topic?.title || 'Sujet inconnu'}"`
         : `${LOG_ACTIONS.POST_DELETED} dans le sujet "${topic?.title || 'Sujet inconnu'}"`;
 
-      await createLog(userId, actionText, id, 'forum_post');
+      await createLog(
+        userId,
+        actionText,
+        targetId, // ✅ Maintenant c'est un Int
+        'forum_post'
+      );
     } catch (logError) {
       console.error('⚠️ Erreur lors de la création du log:', logError);
     }

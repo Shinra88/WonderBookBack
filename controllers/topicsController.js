@@ -1,6 +1,14 @@
-// controllers/topicsController.js
+// controllers/topicsController.js - Modification minimale
 const { ObjectId } = require('mongodb');
 const { createLog, LOG_ACTIONS } = require('./logsController');
+
+// ✅ SOLUTION SIMPLE : Fonction utilitaire en haut du fichier
+const objectIdToInt = (objectId) => {
+  // Convertir ObjectId en string puis prendre les 8 derniers caractères
+  const hex = objectId.toString().slice(-8);
+  // Convertir en entier (limite à 2^31-1 pour éviter overflow)
+  return parseInt(hex, 16) % 2147483647;
+};
 
 async function getTopics(req, res) {
   try {
@@ -36,10 +44,13 @@ async function addTopic(req, res) {
 
     // 📊 Log de la création du sujet
     try {
+      // ✅ FIX : Convertir ObjectId en entier pour Prisma
+      const targetId = objectIdToInt(result.insertedId);
+
       await createLog(
         userId,
         `${LOG_ACTIONS.SUBJECT_CREATED}: "${title}"${notice ? ' (Notice)' : ''}`,
-        result.insertedId.toString(), // MongoDB ObjectId converti en string
+        targetId, // ✅ Maintenant c'est un Int
         'forum_topic'
       );
     } catch (logError) {
@@ -81,19 +92,19 @@ async function deleteTopic(req, res) {
   try {
     const db = req.app.locals.mongoDB;
 
-    // Récupérer les infos du topic avant suppression pour les logs
+    // Récupérer les infos du topic avant suppression
     const existingTopic = await db.collection('topics').findOne({ _id: new ObjectId(id) });
 
     if (!existingTopic) {
       return res.status(404).json({ error: 'Topic introuvable' });
     }
 
-    // Vérifier les permissions (seul l'auteur ou admin/modérateur peut supprimer)
+    // Vérifier les permissions
     if (existingTopic.authorId !== userId && !['admin', 'moderator'].includes(role)) {
       return res.status(403).json({ error: 'Permission refusée' });
     }
 
-    // Supprimer aussi tous les posts associés
+    // Supprimer posts associés
     await db.collection('posts').deleteMany({ topicId: new ObjectId(id) });
 
     // Supprimer le topic
@@ -105,12 +116,20 @@ async function deleteTopic(req, res) {
 
     // 📊 Log de la suppression
     try {
+      // ✅ FIX : Convertir ObjectId en entier pour Prisma
+      const targetId = objectIdToInt(new ObjectId(id));
+
       const isModeration = existingTopic.authorId !== userId;
       const actionText = isModeration
         ? `${LOG_ACTIONS.SUBJECT_DELETED} (modération): "${existingTopic.title}" de ${existingTopic.authorName}`
         : `${LOG_ACTIONS.SUBJECT_DELETED}: "${existingTopic.title}"`;
 
-      await createLog(userId, actionText, id, 'forum_topic');
+      await createLog(
+        userId,
+        actionText,
+        targetId, // ✅ Maintenant c'est un Int
+        'forum_topic'
+      );
     } catch (logError) {
       console.error('⚠️ Erreur lors de la création du log:', logError);
     }

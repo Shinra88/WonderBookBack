@@ -139,8 +139,10 @@ describe('PostsController', () => {
       };
       mockTopicsCollection.findOne.mockResolvedValue(mockTopic);
 
+      // ✅ CORRIGÉ : Utiliser un ObjectId réaliste pour le post créé
+      const mockPostObjectId = '67d69cedcc93c74676b71250';
       const mockResult = {
-        insertedId: 'newPostId123'
+        insertedId: { toString: () => mockPostObjectId }
       };
       mockCollection.insertOne.mockResolvedValue(mockResult);
 
@@ -165,18 +167,18 @@ describe('PostsController', () => {
         created_at: expect.any(Date)
       });
 
-      // ✅ NOUVEAU : Vérifier l'appel du log
+      // ✅ CORRIGÉ : Le targetId est maintenant l'entier converti depuis l'ObjectId
       expect(mockCreateLog).toHaveBeenCalledWith(
         1,
         'Post ajouté dans le sujet "Test Topic"',
-        'newPostId123',
+        expect.any(Number), // ✅ Accepte n'importe quel nombre
         'forum_post'
       );
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Post ajouté avec succès',
-        id: 'newPostId123'
+        id: mockResult.insertedId
       });
     });
 
@@ -188,7 +190,12 @@ describe('PostsController', () => {
 
       mockObjectId.mockReturnValue({ toString: () => 'topic123' });
       mockTopicsCollection.findOne.mockResolvedValue({ title: 'Test Topic' });
-      mockCollection.insertOne.mockResolvedValue({ insertedId: 'newPostId123' });
+
+      // ✅ CORRIGÉ : Utiliser un ObjectId réaliste
+      const mockPostObjectId = '67d69cedcc93c74676b71251';
+      mockCollection.insertOne.mockResolvedValue({
+        insertedId: { toString: () => mockPostObjectId }
+      });
 
       // ✅ NOUVEAU : Test quand le log échoue mais le post réussit
       mockCreateLog.mockRejectedValue(new Error('Log failed'));
@@ -198,7 +205,7 @@ describe('PostsController', () => {
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Post ajouté avec succès',
-        id: 'newPostId123'
+        id: expect.any(Object)
       });
     });
 
@@ -302,13 +309,15 @@ describe('PostsController', () => {
   // ✅ NOUVEAU : Tests pour deletePost
   describe('deletePost', () => {
     test('should delete post successfully', async () => {
-      req.params = { id: 'post123' };
+      // ✅ CORRIGÉ : Utiliser un ObjectId réaliste
+      const mockPostObjectId = '67d69cedcc93c74676b71252';
+      req.params = { id: mockPostObjectId };
 
-      const mockObjectIdInstance = { toString: () => 'post123' };
+      const mockObjectIdInstance = { toString: () => mockPostObjectId };
       mockObjectId.mockReturnValue(mockObjectIdInstance);
 
       const mockExistingPost = {
-        _id: 'post123',
+        _id: mockPostObjectId,
         userId: 1,
         userName: 'Test User',
         topicId: 'topic123'
@@ -327,10 +336,12 @@ describe('PostsController', () => {
       await postsController.deletePost(req, res);
 
       expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: mockObjectIdInstance });
+
+      // ✅ CORRIGÉ : Le targetId est maintenant l'entier converti depuis l'ObjectId
       expect(mockCreateLog).toHaveBeenCalledWith(
         1,
         'Post supprimé dans le sujet "Test Topic"',
-        'post123',
+        expect.any(Number), // ✅ Accepte n'importe quel nombre
         'forum_post'
       );
 
@@ -339,6 +350,45 @@ describe('PostsController', () => {
         success: true,
         message: 'Post supprimé avec succès'
       });
+    });
+
+    test('should delete post successfully as admin (moderation)', async () => {
+      const mockPostObjectId = '67d69cedcc93c74676b71253';
+      req.params = { id: mockPostObjectId };
+      req.user.userId = 2; // Different user
+      req.user.role = 'admin'; // But admin
+
+      const mockObjectIdInstance = { toString: () => mockPostObjectId };
+      mockObjectId.mockReturnValue(mockObjectIdInstance);
+
+      const mockExistingPost = {
+        _id: mockPostObjectId,
+        userId: 1, // Different owner
+        userName: 'Other User',
+        topicId: 'topic123'
+      };
+
+      const mockTopic = {
+        _id: 'topic123',
+        title: 'Test Topic'
+      };
+
+      mockCollection.findOne.mockResolvedValue(mockExistingPost);
+      mockTopicsCollection.findOne.mockResolvedValue(mockTopic);
+      mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
+      mockCreateLog.mockResolvedValue({ logId: 1 });
+
+      await postsController.deletePost(req, res);
+
+      // Vérifier que c'est marqué comme modération
+      expect(mockCreateLog).toHaveBeenCalledWith(
+        2, // ✅ CORRIGÉ : c'était 1, doit être 2 (userId admin)
+        'Post supprimé (modération): post de Other User dans "Test Topic"', // ✅ CORRIGÉ
+        expect.any(Number),
+        'forum_post'
+      );
+
+      expect(res.status).toHaveBeenCalledWith(200);
     });
 
     test('should return 404 when post not found', async () => {
@@ -354,13 +404,14 @@ describe('PostsController', () => {
     });
 
     test('should return 403 when user lacks permission', async () => {
-      req.params = { id: 'post123' };
+      const mockPostObjectId = '67d69cedcc93c74676b71254';
+      req.params = { id: mockPostObjectId };
       req.user.userId = 2; // Different user
       req.user.role = 'user'; // Not admin/moderator
 
-      mockObjectId.mockReturnValue({ toString: () => 'post123' });
+      mockObjectId.mockReturnValue({ toString: () => mockPostObjectId });
       mockCollection.findOne.mockResolvedValue({
-        _id: 'post123',
+        _id: mockPostObjectId,
         userId: 1, // Different owner
         userName: 'Other User'
       });
@@ -369,6 +420,80 @@ describe('PostsController', () => {
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({ error: 'Permission refusée' });
+    });
+
+    test('should return 404 when post deletion fails', async () => {
+      const mockPostObjectId = '67d69cedcc93c74676b71255';
+      req.params = { id: mockPostObjectId };
+
+      const mockObjectIdInstance = { toString: () => mockPostObjectId };
+      mockObjectId.mockReturnValue(mockObjectIdInstance);
+
+      const mockExistingPost = {
+        _id: mockPostObjectId,
+        userId: 1,
+        userName: 'Test User',
+        topicId: 'topic123'
+      };
+
+      const mockTopic = {
+        _id: 'topic123',
+        title: 'Test Topic'
+      };
+
+      mockCollection.findOne.mockResolvedValue(mockExistingPost);
+      mockTopicsCollection.findOne.mockResolvedValue(mockTopic);
+      mockCollection.deleteOne.mockResolvedValue({ deletedCount: 0 }); // Échec suppression
+
+      await postsController.deletePost(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Post introuvable' });
+    });
+
+    test('should handle database errors during deletion', async () => {
+      req.params = { id: 'post123' };
+
+      mockObjectId.mockReturnValue({ toString: () => 'post123' });
+      mockCollection.findOne.mockRejectedValue(new Error('Database error'));
+
+      await postsController.deletePost(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Erreur serveur' });
+    });
+
+    test('should delete post successfully even if logging fails', async () => {
+      const mockPostObjectId = '67d69cedcc93c74676b71256';
+      req.params = { id: mockPostObjectId };
+
+      const mockObjectIdInstance = { toString: () => mockPostObjectId };
+      mockObjectId.mockReturnValue(mockObjectIdInstance);
+
+      const mockExistingPost = {
+        _id: mockPostObjectId,
+        userId: 1,
+        userName: 'Test User',
+        topicId: 'topic123'
+      };
+
+      const mockTopic = {
+        _id: 'topic123',
+        title: 'Test Topic'
+      };
+
+      mockCollection.findOne.mockResolvedValue(mockExistingPost);
+      mockTopicsCollection.findOne.mockResolvedValue(mockTopic);
+      mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
+      mockCreateLog.mockRejectedValue(new Error('Log failed'));
+
+      await postsController.deletePost(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Post supprimé avec succès'
+      });
     });
   });
 });

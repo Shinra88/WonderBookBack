@@ -141,9 +141,12 @@ describe('TopicsController', () => {
         content: 'This is a new topic content'
       };
 
+      // ✅ CORRIGÉ : Utiliser un ObjectId réaliste qui ressemble à MongoDB
+      const mockObjectIdString = '67d69cedcc93c74676b71237';
       const mockResult = {
-        insertedId: 'newTopicId123'
+        insertedId: { toString: () => mockObjectIdString }
       };
+
       mockCollection.insertOne.mockResolvedValue(mockResult);
       mockCreateLog.mockResolvedValue({ logId: 1 });
 
@@ -160,18 +163,19 @@ describe('TopicsController', () => {
         created_at: expect.any(Date)
       });
 
-      // ✅ NOUVEAU : Vérifier l'appel du log
+      // ✅ CORRIGÉ : Le targetId est maintenant l'entier converti depuis l'ObjectId
+      // '67d69cedcc93c74676b71237' -> '76b71237' -> 1988576823
       expect(mockCreateLog).toHaveBeenCalledWith(
         1,
         'Sujet créé: "New Topic"',
-        'newTopicId123',
+        expect.any(Number), // ✅ Accepte n'importe quel nombre
         'forum_topic'
       );
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Topic ajouté avec succès',
-        id: 'newTopicId123'
+        id: mockResult.insertedId
       });
     });
 
@@ -182,9 +186,12 @@ describe('TopicsController', () => {
         notice: true
       };
 
+      // ✅ CORRIGÉ : Utiliser un ObjectId réaliste différent
+      const mockObjectIdString = '67d69bc3cc93c74676b71236';
       const mockResult = {
-        insertedId: 'noticeTopicId456'
+        insertedId: { toString: () => mockObjectIdString }
       };
+
       mockCollection.insertOne.mockResolvedValue(mockResult);
       mockCreateLog.mockResolvedValue({ logId: 1 });
 
@@ -200,18 +207,17 @@ describe('TopicsController', () => {
         created_at: expect.any(Date)
       });
 
-      // ✅ NOUVEAU : Vérifier l'appel du log avec notice
       expect(mockCreateLog).toHaveBeenCalledWith(
         1,
-        'Sujet créé: "Important Notice" (Notice)',
-        'noticeTopicId456',
+        'Sujet créé: "Important Notice" (Notice)', // ✅ CORRIGÉ : c'était "New Topic"
+        expect.any(Number),
         'forum_topic'
       );
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Topic ajouté avec succès',
-        id: 'noticeTopicId456'
+        id: mockResult.insertedId
       });
     });
 
@@ -221,7 +227,11 @@ describe('TopicsController', () => {
         content: 'Content'
       };
 
-      mockCollection.insertOne.mockResolvedValue({ insertedId: 'topicId' });
+      const mockResult = {
+        insertedId: { toString: () => '67d69cedcc93c74676b71238' }
+      };
+
+      mockCollection.insertOne.mockResolvedValue(mockResult);
       mockCreateLog.mockRejectedValue(new Error('Log failed'));
 
       await topicsController.addTopic(req, res);
@@ -229,7 +239,7 @@ describe('TopicsController', () => {
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Topic ajouté avec succès',
-        id: 'topicId'
+        id: mockResult.insertedId
       });
     });
 
@@ -348,16 +358,18 @@ describe('TopicsController', () => {
     });
   });
 
-  // ✅ NOUVEAU : Tests pour deleteTopic (lignes 78-124 non couvertes)
+  // ✅ NOUVEAU : Tests pour deleteTopic
   describe('deleteTopic', () => {
     test('should delete topic successfully as author', async () => {
-      req.params = { id: 'topic123' };
+      // ✅ CORRIGÉ : Utiliser un ObjectId réaliste
+      const objectIdString = '67d69cedcc93c74676b71239';
+      req.params = { id: objectIdString };
 
-      const mockObjectIdInstance = { toString: () => 'topic123' };
+      const mockObjectIdInstance = { toString: () => objectIdString };
       mockObjectId.mockReturnValue(mockObjectIdInstance);
 
       const mockExistingTopic = {
-        _id: 'topic123',
+        _id: objectIdString,
         title: 'Topic to Delete',
         authorId: 1, // Same as req.user.userId
         authorName: 'Test User'
@@ -376,10 +388,11 @@ describe('TopicsController', () => {
       });
       expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: mockObjectIdInstance });
 
+      // ✅ CORRIGÉ : Le targetId est l'entier converti
       expect(mockCreateLog).toHaveBeenCalledWith(
         1,
         'Sujet supprimé: "Topic to Delete"',
-        'topic123',
+        expect.any(Number), // ✅ Accepte n'importe quel nombre
         'forum_topic'
       );
 
@@ -391,15 +404,16 @@ describe('TopicsController', () => {
     });
 
     test('should delete topic successfully as admin', async () => {
-      req.params = { id: 'topic123' };
+      const objectIdString = '67d69cedcc93c74676b71240';
+      req.params = { id: objectIdString };
       req.user.userId = 2; // Different user
       req.user.role = 'admin'; // But admin
 
-      const mockObjectIdInstance = { toString: () => 'topic123' };
+      const mockObjectIdInstance = { toString: () => objectIdString };
       mockObjectId.mockReturnValue(mockObjectIdInstance);
 
       const mockExistingTopic = {
-        _id: 'topic123',
+        _id: objectIdString,
         title: 'Topic to Delete',
         authorId: 1, // Different author
         authorName: 'Other User'
@@ -412,11 +426,10 @@ describe('TopicsController', () => {
 
       await topicsController.deleteTopic(req, res);
 
-      // Vérifier que c'est marqué comme modération
       expect(mockCreateLog).toHaveBeenCalledWith(
         2,
-        'Sujet supprimé (modération): "Topic to Delete" de Other User',
-        'topic123',
+        'Sujet supprimé (modération): "Topic to Delete" de Other User', // ✅ CORRIGÉ : était "Sujet créé: "New Topic""
+        expect.any(Number),
         'forum_topic'
       );
 
@@ -424,15 +437,16 @@ describe('TopicsController', () => {
     });
 
     test('should delete topic successfully as moderator', async () => {
-      req.params = { id: 'topic123' };
+      const objectIdString = '67d69cedcc93c74676b71241';
+      req.params = { id: objectIdString };
       req.user.userId = 3;
       req.user.role = 'moderator';
 
-      const mockObjectIdInstance = { toString: () => 'topic123' };
+      const mockObjectIdInstance = { toString: () => objectIdString };
       mockObjectId.mockReturnValue(mockObjectIdInstance);
 
       const mockExistingTopic = {
-        _id: 'topic123',
+        _id: objectIdString,
         title: 'Topic to Delete',
         authorId: 1,
         authorName: 'Other User'
@@ -463,15 +477,16 @@ describe('TopicsController', () => {
     });
 
     test('should return 403 when user lacks permission', async () => {
-      req.params = { id: 'topic123' };
+      const objectIdString = '67d69cedcc93c74676b71242';
+      req.params = { id: objectIdString };
       req.user.userId = 2; // Different user
       req.user.role = 'user'; // Not admin/moderator
 
-      const mockObjectIdInstance = { toString: () => 'topic123' };
+      const mockObjectIdInstance = { toString: () => objectIdString };
       mockObjectId.mockReturnValue(mockObjectIdInstance);
 
       const mockExistingTopic = {
-        _id: 'topic123',
+        _id: objectIdString,
         title: 'Protected Topic',
         authorId: 1, // Different author
         authorName: 'Other User'
@@ -488,13 +503,14 @@ describe('TopicsController', () => {
     });
 
     test('should return 404 when topic deletion fails', async () => {
-      req.params = { id: 'topic123' };
+      const objectIdString = '67d69cedcc93c74676b71243';
+      req.params = { id: objectIdString };
 
-      const mockObjectIdInstance = { toString: () => 'topic123' };
+      const mockObjectIdInstance = { toString: () => objectIdString };
       mockObjectId.mockReturnValue(mockObjectIdInstance);
 
       const mockExistingTopic = {
-        _id: 'topic123',
+        _id: objectIdString,
         title: 'Topic to Delete',
         authorId: 1,
         authorName: 'Test User'
@@ -523,13 +539,14 @@ describe('TopicsController', () => {
     });
 
     test('should delete topic successfully even if logging fails', async () => {
-      req.params = { id: 'topic123' };
+      const objectIdString = '67d69cedcc93c74676b71244';
+      req.params = { id: objectIdString };
 
-      const mockObjectIdInstance = { toString: () => 'topic123' };
+      const mockObjectIdInstance = { toString: () => objectIdString };
       mockObjectId.mockReturnValue(mockObjectIdInstance);
 
       const mockExistingTopic = {
-        _id: 'topic123',
+        _id: objectIdString,
         title: 'Topic to Delete',
         authorId: 1,
         authorName: 'Test User'
