@@ -149,13 +149,6 @@ model user {
   passwordResetToken passwordResetToken[]
 }
 
-enum logs_targetType {
-  user
-  book
-  comment
-  subject
-}
-
 enum books_status {
   pending
   validated
@@ -173,4 +166,12 @@ enum user_role {
   prenium
   moderator
   admin
+}
+
+enum logs_targetType {
+  user
+  book
+  comment
+  forum_post
+  forum_topic
 }

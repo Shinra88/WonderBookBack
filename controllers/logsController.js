@@ -207,8 +207,13 @@ exports.LOG_ACTIONS = {
   COMMENT_UPDATED: 'Commentaire modifié',
   COMMENT_DELETED: 'Commentaire supprimé',
 
-  // Actions sur le forum
+  // Actions sur le forum - Sujets
   SUBJECT_CREATED: 'Sujet créé',
   SUBJECT_UPDATED: 'Sujet modifié',
-  SUBJECT_DELETED: 'Sujet supprimé'
+  SUBJECT_DELETED: 'Sujet supprimé',
+
+  // Actions sur le forum - Posts
+  POST_ADDED: 'Post ajouté',
+  POST_UPDATED: 'Post modifié',
+  POST_DELETED: 'Post supprimé'
 };

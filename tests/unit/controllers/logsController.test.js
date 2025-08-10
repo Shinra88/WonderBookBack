@@ -72,12 +72,39 @@ describe('LogsController', () => {
           name: 'Jane Smith',
           role: 'user'
         }
+      },
+      // ✅ NOUVEAU : Logs forum pour les tests
+      {
+        logId: 3,
+        userId: 1,
+        action: 'Sujet créé: "Discussion test"',
+        targetId: 'topic123',
+        targetType: 'forum_topic',
+        created_at: new Date('2024-01-03'),
+        user: {
+          userId: 1,
+          name: 'John Doe',
+          role: 'admin'
+        }
+      },
+      {
+        logId: 4,
+        userId: 2,
+        action: 'Post ajouté dans le sujet "Discussion test"',
+        targetId: 'post456',
+        targetType: 'forum_post',
+        created_at: new Date('2024-01-04'),
+        user: {
+          userId: 2,
+          name: 'Jane Smith',
+          role: 'user'
+        }
       }
     ];
 
     test('should get all logs with default pagination', async () => {
       mockFindMany.mockResolvedValue(mockLogs);
-      mockCount.mockResolvedValue(2);
+      mockCount.mockResolvedValue(4);
 
       await logsController.getAllLogs(req, res);
 
@@ -103,7 +130,7 @@ describe('LogsController', () => {
 
       expect(res.json).toHaveBeenCalledWith({
         logs: mockLogs,
-        total: 2,
+        total: 4,
         pagination: {
           page: 1,
           limit: 50,
@@ -176,16 +203,17 @@ describe('LogsController', () => {
       });
     });
 
-    test('should filter logs by targetType', async () => {
-      req.query = { targetType: 'book' };
+    // ✅ NOUVEAU : Test pour filtrer par targetType forum
+    test('should filter logs by forum targetType', async () => {
+      req.query = { targetType: 'forum_topic' };
 
-      mockFindMany.mockResolvedValue([mockLogs[0]]);
+      mockFindMany.mockResolvedValue([mockLogs[2]]);
       mockCount.mockResolvedValue(1);
 
       await logsController.getAllLogs(req, res);
 
       expect(mockFindMany).toHaveBeenCalledWith({
-        where: { targetType: 'book' },
+        where: { targetType: 'forum_topic' },
         include: {
           user: {
             select: {
@@ -207,7 +235,7 @@ describe('LogsController', () => {
       req.query = { action: 'ajouté' };
 
       mockFindMany.mockResolvedValue(mockLogs);
-      mockCount.mockResolvedValue(2);
+      mockCount.mockResolvedValue(4);
 
       await logsController.getAllLogs(req, res);
 
@@ -237,7 +265,7 @@ describe('LogsController', () => {
       };
 
       mockFindMany.mockResolvedValue(mockLogs);
-      mockCount.mockResolvedValue(2);
+      mockCount.mockResolvedValue(4);
 
       await logsController.getAllLogs(req, res);
 
@@ -269,7 +297,7 @@ describe('LogsController', () => {
       req.query = { startDate: '2024-01-01' };
 
       mockFindMany.mockResolvedValue(mockLogs);
-      mockCount.mockResolvedValue(2);
+      mockCount.mockResolvedValue(4);
 
       await logsController.getAllLogs(req, res);
 
@@ -300,7 +328,7 @@ describe('LogsController', () => {
       req.query = { endDate: '2024-01-31' };
 
       mockFindMany.mockResolvedValue(mockLogs);
-      mockCount.mockResolvedValue(2);
+      mockCount.mockResolvedValue(4);
 
       await logsController.getAllLogs(req, res);
 
@@ -488,7 +516,10 @@ describe('LogsController', () => {
   describe('getLogsStats', () => {
     const mockActionStats = [
       { targetType: 'book', _count: { logId: 10 } },
-      { targetType: 'comment', _count: { logId: 5 } }
+      { targetType: 'comment', _count: { logId: 5 } },
+      // ✅ NOUVEAU : Stats forum
+      { targetType: 'forum_topic', _count: { logId: 3 } },
+      { targetType: 'forum_post', _count: { logId: 7 } }
     ];
 
     const mockUserStats = [
@@ -719,9 +750,41 @@ describe('LogsController', () => {
       expect(result).toEqual(mockLog);
     });
 
-    test('should create a log with null targetId and targetType', async () => {
+    // ✅ NOUVEAU : Test pour créer un log forum
+    test('should create a forum log successfully', async () => {
       const mockLog = {
         logId: 2,
+        userId: 1,
+        action: 'Sujet créé: "Discussion test"',
+        targetId: 'topic123',
+        targetType: 'forum_topic',
+        created_at: new Date()
+      };
+
+      mockCreate.mockResolvedValue(mockLog);
+
+      const result = await logsController.createLog(
+        1,
+        'Sujet créé: "Discussion test"',
+        'topic123',
+        'forum_topic'
+      );
+
+      expect(mockCreate).toHaveBeenCalledWith({
+        data: {
+          userId: 1,
+          action: 'Sujet créé: "Discussion test"',
+          targetId: 'topic123',
+          targetType: 'forum_topic'
+        }
+      });
+
+      expect(result).toEqual(mockLog);
+    });
+
+    test('should create a log with null targetId and targetType', async () => {
+      const mockLog = {
+        logId: 3,
         userId: 2,
         action: 'Connexion',
         targetId: null,
@@ -776,16 +839,34 @@ describe('LogsController', () => {
         COMMENT_UPDATED: 'Commentaire modifié',
         COMMENT_DELETED: 'Commentaire supprimé',
 
-        // Actions sur le forum
+        // ✅ CORRIGÉ : Actions sur le forum - Sujets
         SUBJECT_CREATED: 'Sujet créé',
         SUBJECT_UPDATED: 'Sujet modifié',
-        SUBJECT_DELETED: 'Sujet supprimé'
+        SUBJECT_DELETED: 'Sujet supprimé',
+
+        // ✅ NOUVEAU : Actions sur le forum - Posts
+        POST_ADDED: 'Post ajouté',
+        POST_UPDATED: 'Post modifié',
+        POST_DELETED: 'Post supprimé'
       });
     });
 
     test('should have correct number of log actions', () => {
       const actions = Object.keys(logsController.LOG_ACTIONS);
-      expect(actions).toHaveLength(16);
+      expect(actions).toHaveLength(19); // ✅ CORRIGÉ : 16 + 3 nouvelles actions = 19
+    });
+
+    // ✅ NOUVEAU : Tests spécifiques pour les actions forum
+    test('should have forum post actions', () => {
+      expect(logsController.LOG_ACTIONS.POST_ADDED).toBe('Post ajouté');
+      expect(logsController.LOG_ACTIONS.POST_UPDATED).toBe('Post modifié');
+      expect(logsController.LOG_ACTIONS.POST_DELETED).toBe('Post supprimé');
+    });
+
+    test('should have forum subject actions', () => {
+      expect(logsController.LOG_ACTIONS.SUBJECT_CREATED).toBe('Sujet créé');
+      expect(logsController.LOG_ACTIONS.SUBJECT_UPDATED).toBe('Sujet modifié');
+      expect(logsController.LOG_ACTIONS.SUBJECT_DELETED).toBe('Sujet supprimé');
     });
   });
 });

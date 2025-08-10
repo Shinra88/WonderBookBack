@@ -1,5 +1,6 @@
 // controllers/topicsController.js
 const { ObjectId } = require('mongodb');
+const { createLog, LOG_ACTIONS } = require('./logsController');
 
 async function getTopics(req, res) {
   try {
@@ -33,7 +34,22 @@ async function addTopic(req, res) {
       created_at: new Date()
     });
 
-    res.status(201).json({ message: 'Topic ajouté avec succès', id: result.insertedId });
+    // 📊 Log de la création du sujet
+    try {
+      await createLog(
+        userId,
+        `${LOG_ACTIONS.SUBJECT_CREATED}: "${title}"${notice ? ' (Notice)' : ''}`,
+        result.insertedId.toString(), // MongoDB ObjectId converti en string
+        'forum_topic'
+      );
+    } catch (logError) {
+      console.error('⚠️ Erreur lors de la création du log:', logError);
+    }
+
+    res.status(201).json({
+      message: 'Topic ajouté avec succès',
+      id: result.insertedId
+    });
   } catch (error) {
     console.error("❌ Erreur lors de l'ajout du topic :", error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -58,4 +74,60 @@ async function getTopicById(req, res) {
   }
 }
 
-module.exports = { getTopics, addTopic, getTopicById };
+async function deleteTopic(req, res) {
+  const { id } = req.params;
+  const { userId, role } = req.user;
+
+  try {
+    const db = req.app.locals.mongoDB;
+
+    // Récupérer les infos du topic avant suppression pour les logs
+    const existingTopic = await db.collection('topics').findOne({ _id: new ObjectId(id) });
+
+    if (!existingTopic) {
+      return res.status(404).json({ error: 'Topic introuvable' });
+    }
+
+    // Vérifier les permissions (seul l'auteur ou admin/modérateur peut supprimer)
+    if (existingTopic.authorId !== userId && !['admin', 'moderator'].includes(role)) {
+      return res.status(403).json({ error: 'Permission refusée' });
+    }
+
+    // Supprimer aussi tous les posts associés
+    await db.collection('posts').deleteMany({ topicId: new ObjectId(id) });
+
+    // Supprimer le topic
+    const result = await db.collection('topics').deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Topic introuvable' });
+    }
+
+    // 📊 Log de la suppression
+    try {
+      const isModeration = existingTopic.authorId !== userId;
+      const actionText = isModeration
+        ? `${LOG_ACTIONS.SUBJECT_DELETED} (modération): "${existingTopic.title}" de ${existingTopic.authorName}`
+        : `${LOG_ACTIONS.SUBJECT_DELETED}: "${existingTopic.title}"`;
+
+      await createLog(userId, actionText, id, 'forum_topic');
+    } catch (logError) {
+      console.error('⚠️ Erreur lors de la création du log:', logError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Topic et posts associés supprimés avec succès'
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors de la suppression du topic :', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+}
+
+module.exports = {
+  getTopics,
+  addTopic,
+  getTopicById,
+  deleteTopic
+};

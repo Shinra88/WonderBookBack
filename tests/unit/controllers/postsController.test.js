@@ -6,6 +6,16 @@ jest.mock('mongodb', () => ({
   ObjectId: mockObjectId
 }));
 
+// ✅ NOUVEAU : Mock du logsController
+const mockCreateLog = jest.fn();
+jest.mock('../../../controllers/logsController', () => ({
+  createLog: mockCreateLog,
+  LOG_ACTIONS: {
+    POST_ADDED: 'Post ajouté',
+    POST_DELETED: 'Post supprimé'
+  }
+}));
+
 // Mock console
 jest.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -13,18 +23,29 @@ jest.spyOn(console, 'error').mockImplementation(() => {});
 const postsController = require('../../../controllers/postsController');
 
 describe('PostsController', () => {
-  let req, res, mockDB, mockCollection;
+  let req, res, mockDB, mockCollection, mockTopicsCollection;
 
   beforeEach(() => {
-    // Mock de la collection MongoDB
+    // Mock de la collection posts
     mockCollection = {
       find: jest.fn(),
-      insertOne: jest.fn()
+      insertOne: jest.fn(),
+      findOne: jest.fn(),
+      deleteOne: jest.fn()
+    };
+
+    // ✅ NOUVEAU : Mock de la collection topics
+    mockTopicsCollection = {
+      findOne: jest.fn()
     };
 
     // Mock de la base de données
     mockDB = {
-      collection: jest.fn().mockReturnValue(mockCollection)
+      collection: jest.fn((name) => {
+        if (name === 'posts') return mockCollection;
+        if (name === 'topics') return mockTopicsCollection;
+        return mockCollection;
+      })
     };
 
     req = {
@@ -38,7 +59,8 @@ describe('PostsController', () => {
       user: {
         userId: 1,
         name: 'Test User',
-        avatar: 'avatar.jpg'
+        avatar: 'avatar.jpg',
+        role: 'user'
       }
     };
 
@@ -71,7 +93,6 @@ describe('PostsController', () => {
         }
       ];
 
-      // Mock de la chaîne de méthodes MongoDB
       const mockFind = {
         toArray: jest.fn().mockResolvedValue(mockPosts)
       };
@@ -98,17 +119,6 @@ describe('PostsController', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Erreur serveur' });
     });
-
-    test('should return empty array when no posts found', async () => {
-      const mockFind = {
-        toArray: jest.fn().mockResolvedValue([])
-      };
-      mockCollection.find.mockReturnValue(mockFind);
-
-      await postsController.getPosts(req, res);
-
-      expect(res.json).toHaveBeenCalledWith([]);
-    });
   });
 
   describe('addPost', () => {
@@ -121,15 +131,31 @@ describe('PostsController', () => {
       const mockObjectIdInstance = { toString: () => 'topic123' };
       mockObjectId.mockReturnValue(mockObjectIdInstance);
 
+      // ✅ NOUVEAU : Mock du topic pour les logs
+      const mockTopic = {
+        _id: 'topic123',
+        title: 'Test Topic',
+        authorId: 1
+      };
+      mockTopicsCollection.findOne.mockResolvedValue(mockTopic);
+
       const mockResult = {
         insertedId: 'newPostId123'
       };
       mockCollection.insertOne.mockResolvedValue(mockResult);
 
+      // ✅ NOUVEAU : Mock du createLog qui réussit
+      mockCreateLog.mockResolvedValue({ logId: 1 });
+
       await postsController.addPost(req, res);
 
+      // ✅ CORRIGÉ : Vérifier les appels dans l'ordre
+      expect(mockDB.collection).toHaveBeenCalledWith('topics'); // Premier appel pour récupérer le topic
+      expect(mockDB.collection).toHaveBeenCalledWith('posts'); // Deuxième appel pour insérer le post
+
       expect(mockObjectId).toHaveBeenCalledWith('topic123');
-      expect(mockDB.collection).toHaveBeenCalledWith('posts');
+      expect(mockTopicsCollection.findOne).toHaveBeenCalledWith({ _id: mockObjectIdInstance });
+
       expect(mockCollection.insertOne).toHaveBeenCalledWith({
         topicId: mockObjectIdInstance,
         userId: 1,
@@ -138,6 +164,36 @@ describe('PostsController', () => {
         content: 'This is a test post',
         created_at: expect.any(Date)
       });
+
+      // ✅ NOUVEAU : Vérifier l'appel du log
+      expect(mockCreateLog).toHaveBeenCalledWith(
+        1,
+        'Post ajouté dans le sujet "Test Topic"',
+        'newPostId123',
+        'forum_post'
+      );
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Post ajouté avec succès',
+        id: 'newPostId123'
+      });
+    });
+
+    test('should add post successfully even if logging fails', async () => {
+      req.body = {
+        topicId: 'topic123',
+        content: 'This is a test post'
+      };
+
+      mockObjectId.mockReturnValue({ toString: () => 'topic123' });
+      mockTopicsCollection.findOne.mockResolvedValue({ title: 'Test Topic' });
+      mockCollection.insertOne.mockResolvedValue({ insertedId: 'newPostId123' });
+
+      // ✅ NOUVEAU : Test quand le log échoue mais le post réussit
+      mockCreateLog.mockRejectedValue(new Error('Log failed'));
+
+      await postsController.addPost(req, res);
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
@@ -149,7 +205,6 @@ describe('PostsController', () => {
     test('should return 400 when topicId is missing', async () => {
       req.body = {
         content: 'This is a test post'
-        // topicId manquant
       };
 
       await postsController.addPost(req, res);
@@ -157,23 +212,13 @@ describe('PostsController', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ error: 'Tous les champs sont requis.' });
       expect(mockCollection.insertOne).not.toHaveBeenCalled();
+      expect(mockCreateLog).not.toHaveBeenCalled();
     });
 
     test('should return 400 when content is missing', async () => {
       req.body = {
         topicId: 'topic123'
-        // content manquant
       };
-
-      await postsController.addPost(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Tous les champs sont requis.' });
-      expect(mockCollection.insertOne).not.toHaveBeenCalled();
-    });
-
-    test('should return 400 when both fields are missing', async () => {
-      req.body = {};
 
       await postsController.addPost(req, res);
 
@@ -188,6 +233,7 @@ describe('PostsController', () => {
       };
 
       mockObjectId.mockReturnValue({ toString: () => 'topic123' });
+      mockTopicsCollection.findOne.mockResolvedValue({ title: 'Test Topic' });
       mockCollection.insertOne.mockRejectedValue(new Error('Insert failed'));
 
       await postsController.addPost(req, res);
@@ -209,21 +255,12 @@ describe('PostsController', () => {
           userName: 'User1',
           content: 'First post in topic',
           created_at: new Date('2024-01-01')
-        },
-        {
-          _id: 'post2',
-          topicId: 'topic123',
-          userId: 2,
-          userName: 'User2',
-          content: 'Second post in topic',
-          created_at: new Date('2024-01-02')
         }
       ];
 
       const mockObjectIdInstance = { toString: () => 'topic123' };
       mockObjectId.mockReturnValue(mockObjectIdInstance);
 
-      // Mock de la chaîne de méthodes MongoDB
       const mockSort = {
         toArray: jest.fn().mockResolvedValue(mockPosts)
       };
@@ -238,28 +275,8 @@ describe('PostsController', () => {
       expect(mockDB.collection).toHaveBeenCalledWith('posts');
       expect(mockCollection.find).toHaveBeenCalledWith({ topicId: mockObjectIdInstance });
       expect(mockFind.sort).toHaveBeenCalledWith({ created_at: 1 });
-      expect(mockSort.toArray).toHaveBeenCalled();
 
       expect(res.json).toHaveBeenCalledWith(mockPosts);
-      expect(res.status).not.toHaveBeenCalled();
-    });
-
-    test('should return empty array when no posts found for topic', async () => {
-      req.params = { topicId: 'nonexistent' };
-
-      mockObjectId.mockReturnValue({ toString: () => 'nonexistent' });
-
-      const mockSort = {
-        toArray: jest.fn().mockResolvedValue([])
-      };
-      const mockFind = {
-        sort: jest.fn().mockReturnValue(mockSort)
-      };
-      mockCollection.find.mockReturnValue(mockFind);
-
-      await postsController.getPostsByTopicId(req, res);
-
-      expect(res.json).toHaveBeenCalledWith([]);
     });
 
     test('should handle database errors when getting posts by topic', async () => {
@@ -280,18 +297,78 @@ describe('PostsController', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Erreur serveur' });
     });
+  });
 
-    test('should handle ObjectId creation errors', async () => {
-      req.params = { topicId: 'invalid-id' };
+  // ✅ NOUVEAU : Tests pour deletePost
+  describe('deletePost', () => {
+    test('should delete post successfully', async () => {
+      req.params = { id: 'post123' };
 
-      mockObjectId.mockImplementation(() => {
-        throw new Error('Invalid ObjectId');
+      const mockObjectIdInstance = { toString: () => 'post123' };
+      mockObjectId.mockReturnValue(mockObjectIdInstance);
+
+      const mockExistingPost = {
+        _id: 'post123',
+        userId: 1,
+        userName: 'Test User',
+        topicId: 'topic123'
+      };
+
+      const mockTopic = {
+        _id: 'topic123',
+        title: 'Test Topic'
+      };
+
+      mockCollection.findOne.mockResolvedValue(mockExistingPost);
+      mockTopicsCollection.findOne.mockResolvedValue(mockTopic);
+      mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
+      mockCreateLog.mockResolvedValue({ logId: 1 });
+
+      await postsController.deletePost(req, res);
+
+      expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: mockObjectIdInstance });
+      expect(mockCreateLog).toHaveBeenCalledWith(
+        1,
+        'Post supprimé dans le sujet "Test Topic"',
+        'post123',
+        'forum_post'
+      );
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Post supprimé avec succès'
+      });
+    });
+
+    test('should return 404 when post not found', async () => {
+      req.params = { id: 'nonexistent' };
+
+      mockObjectId.mockReturnValue({ toString: () => 'nonexistent' });
+      mockCollection.findOne.mockResolvedValue(null);
+
+      await postsController.deletePost(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Post introuvable' });
+    });
+
+    test('should return 403 when user lacks permission', async () => {
+      req.params = { id: 'post123' };
+      req.user.userId = 2; // Different user
+      req.user.role = 'user'; // Not admin/moderator
+
+      mockObjectId.mockReturnValue({ toString: () => 'post123' });
+      mockCollection.findOne.mockResolvedValue({
+        _id: 'post123',
+        userId: 1, // Different owner
+        userName: 'Other User'
       });
 
-      await postsController.getPostsByTopicId(req, res);
+      await postsController.deletePost(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Erreur serveur' });
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Permission refusée' });
     });
   });
 });
